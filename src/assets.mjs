@@ -2,12 +2,12 @@
 const BASE = new URL('../assets/', import.meta.url).href;
 export const assetUrl = path => BASE + path;
 
-const pending = new Map(), ready = new Map();
+const pending = new Map(), ready = new Map(), failed = new Set();
 export function loadImage(path) {
   if (!pending.has(path)) pending.set(path, new Promise((resolve, reject) => {
     const img = new Image(); img.decoding = 'async';
     img.onload = () => { ready.set(path, img); resolve(img); };
-    img.onerror = () => { pending.delete(path); reject(new Error(`image failed: ${path}`)); };
+    img.onerror = () => { pending.delete(path); failed.add(path); reject(new Error(`image failed: ${path}`)); };
     img.src = assetUrl(path);
   }));
   return pending.get(path);
@@ -18,15 +18,16 @@ export async function preload(paths, onProgress) {
 }
 // 同步取图：还没加载完就返回 null，并在后台开始加载（下一帧再画）。
 export function image(path) {
-  if (!ready.has(path)) { loadImage(path).catch(() => {}); return null; }
+  if (!ready.has(path)) { if (!failed.has(path)) loadImage(path).catch(() => {}); return null; }
   return ready.get(path);
 }
 
 export const UNIT_TYPES = ['knight', 'guard', 'archer', 'bomber', 'giant', 'lancer', 'healer', 'mage'];
-export const unitPath = type => `units/${type}.webp`;
+// 每个兵种两张图：front 是面向镜头的正面（朝右下），back 是背对镜头的背面（朝右上）。
+export const unitPath = (type, view = 'front') => `units/${type}${view === 'back' ? '-back' : ''}.webp`;
 export const THEMES = ['meadow', 'canyon', 'snow', 'citadel'];
 export const CORE_IMAGES = [
-  ...UNIT_TYPES.map(unitPath), 'ui/logo.webp', 'bg/home.webp', 'bg/field-meadow.webp',
+  ...UNIT_TYPES.map(type => unitPath(type)), ...UNIT_TYPES.map(type => unitPath(type, 'back')), 'ui/logo.webp', 'bg/home.webp', 'bg/field-meadow.webp',
   'icons/coin.webp', 'icons/star.webp', 'icons/ink.webp', 'icons/item-heal.webp', 'icons/item-smoke.webp', 'icons/item-rally.webp', 'icons/item-thunder.webp', 'icons/item-frost.webp'
 ];
 
@@ -78,19 +79,22 @@ function recolor(img, palette) {
 
 const sprites = new Map();
 // 取某兵种某配色的贴图（canvas）；原图未加载完时返回 null。
-export function unitSprite(type, paletteId = 'blue') {
-  const key = `${type}:${paletteId}`;
+export function unitSprite(type, paletteId = 'blue', view = 'front') {
+  const key = `${type}:${paletteId}:${view}`;
   if (sprites.has(key)) return sprites.get(key);
-  const img = image(unitPath(type)); if (!img) return null;
+  const img = image(unitPath(type, view));
+  // 背面图缺失时退回正面图，保证游戏照常运行。
+  if (!img) return view === 'back' && failed.has(unitPath(type, 'back')) ? unitSprite(type, paletteId) : null;
   const canvas = recolor(img, PALETTES[paletteId] || PALETTES.blue);
   sprites.set(key, canvas);
   return canvas;
 }
 // 纯色剪影：受击闪白、冰冻、锁定剪影共用。
-export function unitSilhouette(type, color) {
-  const key = `${type}:sil:${color}`;
+export function unitSilhouette(type, color, view = 'front') {
+  const key = `${type}:sil:${color}:${view}`;
   if (sprites.has(key)) return sprites.get(key);
-  const img = image(unitPath(type)); if (!img) return null;
+  const img = image(unitPath(type, view));
+  if (!img) return view === 'back' && failed.has(unitPath(type, 'back')) ? unitSilhouette(type, color) : null;
   const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
   const c = canvas.getContext('2d'); c.drawImage(img, 0, 0);
   c.globalCompositeOperation = 'source-atop'; c.fillStyle = color; c.fillRect(0, 0, canvas.width, canvas.height);
@@ -101,8 +105,9 @@ export function unitSilhouette(type, color) {
 // 角色在战场上的身高（逻辑像素）。贴图画布 320，高度约 300，脚底贴着画布下沿。
 export const UNIT_HEIGHT = { knight: 66, guard: 63, archer: 62, bomber: 70, giant: 96, lancer: 61, healer: 62, mage: 70 };
 // 把角色画到任意 2D 画布上：(x, y) 是脚底位置，height 是角色身高。
-export function drawUnitImage(c, type, paletteId, x, y, height, { flip = false, alpha = 1, silhouette = null } = {}) {
-  const sprite = silhouette ? unitSilhouette(type, silhouette) : unitSprite(type, paletteId);
+export function drawUnitImage(c, type, paletteId, x, y, height, { flip = false, alpha = 1, silhouette = null, back = false } = {}) {
+  const view = back ? 'back' : 'front';
+  const sprite = silhouette ? unitSilhouette(type, silhouette, view) : unitSprite(type, paletteId, view);
   if (!sprite) return false;
   const box = height * 320 / 300;
   c.save(); c.translate(x, y); if (flip) c.scale(-1, 1); c.globalAlpha *= alpha;

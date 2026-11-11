@@ -24,6 +24,12 @@ function star(c, x, y, r, fill, stroke = INK) {
   c.closePath(); c.fillStyle = fill; c.fill(); if (stroke) { c.strokeStyle = stroke; c.lineWidth = 2; c.lineJoin = 'round'; c.stroke(); }
 }
 const teamColor = (team, skin) => team === 0 ? (PALETTES[skin] || PALETTES.blue).swatch : PALETTES.red.swatch;
+const rand = (a, b) => a + Math.random() * (b - a);
+// 按比例混合两个 #rrggbb 颜色。
+function mix(a, b, k) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), ch = s => Math.round(((x >> s) & 255) * (1 - k) + ((y >> s) & 255) * k);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
 
 const SHORE = { meadow: ['#e9dcae', '#7aa84f'], canyon: ['#f6e3b5', '#d9a868'], snow: ['#ffffff', '#b9d6ea'], citadel: ['#d9d2bd', '#8f8a78'] };
 function drawPond(c, o, t, reduced, theme) {
@@ -53,12 +59,14 @@ function drawEffect(c, f, renderer) {
   const reduced = renderer.reduced, p = f.t / f.life, alpha = 1 - p;
   c.save(); c.translate(f.x, f.y); c.globalAlpha = Math.max(0, alpha);
   if (f.kind === 'death') {
-    const u = f.unit;
+    const u = f.unit, pose = renderer.faces.get(u.id) || renderer.defaultPose(u), palette = u.team === 0 ? renderer.skin : 'red';
     if (!reduced) {
-      c.save(); c.globalAlpha = Math.max(0, 1 - p * 1.2); c.rotate(p * (u.team ? -1 : 1) * 1.2); c.translate(0, p * 6);
-      drawUnitImage(c, u.type, u.team === 0 ? renderer.skin : 'red', 0, 3, UNIT_HEIGHT[u.type], { flip: (renderer.faces.get(u.id) ?? (u.team ? -1 : 1)) < 0 }); c.restore();
-    }
-    for (let i = 0; i < 6; i++) ellipse(c, Math.cos(i * 1.7) * p * 24, -10 + Math.sin(i * 1.7) * p * 12, 5 + p * 5, 4 + p * 4, '#fff8e6');
+      const options = { flip: pose.flip < 0, back: pose.back };
+      c.save(); c.globalAlpha = Math.max(0, 1 - p * 1.25); c.rotate(p * -pose.flip * 1.1); c.translate(0, p * 6); c.scale(1 + p * .12, 1 - p * .25);
+      drawUnitImage(c, u.type, palette, 0, 3, UNIT_HEIGHT[u.type], options);
+      if (p < .3) drawUnitImage(c, u.type, palette, 0, 3, UNIT_HEIGHT[u.type], { ...options, alpha: 1 - p / .3, silhouette: '#ffffff' });
+      c.restore();
+    } else for (let i = 0; i < 6; i++) ellipse(c, Math.cos(i * 1.7) * p * 24, -10 + Math.sin(i * 1.7) * p * 12, 5 + p * 5, 4 + p * 4, '#fff8e6');
   } else if (f.kind === 'heal') {
     ring(c, 0, 0, 12 + p * 26, 5 + p * 9, '#5fbf6b', 2.5);
     for (let i = 0; i < 3; i++) { const x = (i - 1) * 11, y = -22 - p * 26 - i * 5; line(c, x - 4, y, x + 4, y, '#5fbf6b', 3.2); line(c, x, y - 4, x, y + 4, '#5fbf6b', 3.2); }
@@ -121,6 +129,7 @@ export class Renderer {
     this.theme = 'meadow'; this.skin = 'blue'; this.words = {}; this.unitName = type => type;
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.faces = new Map(); this.inkTrail = []; this.reticle = null;
+    this.particles = []; this.decals = []; this.seenFx = new WeakSet(); this.timeScale = 1;
     this.resize(); new ResizeObserver(() => this.resize()).observe(canvas);
   }
   setTheme(theme) { if (theme !== this.theme) { this.theme = theme; this.fieldCache = null; } }
@@ -186,12 +195,88 @@ export class Renderer {
     c.restore();
   }
 
+  // 朝向：战场是上下对战，所以每个角色有正面和背面两张图。
+  // 瞄准方向朝上用背面、朝下用正面；左右决定是否水平翻转。接近水平或垂直时保持原样，避免来回抖动。
+  // 还没有瞄准目标时：我方背对镜头朝上，敌方面向镜头朝下；左右两翼都朝向战场中线。
+  defaultPose(u) { return { flip: u.x <= W / 2 ? 1 : -1, back: u.team === 0 }; }
+  pose(u, build) {
+    if (build || u.id === undefined || u.angle === undefined) return this.defaultPose(u);
+    let pose = this.faces.get(u.id);
+    if (!pose) { pose = this.defaultPose(u); this.faces.set(u.id, pose); }
+    const ax = Math.cos(u.angle), ay = Math.sin(u.angle);
+    if (Math.abs(ax) > .3) pose.flip = ax > 0 ? 1 : -1;
+    if (Math.abs(ay) > .3) pose.back = ay < 0;
+    return pose;
+  }
+
+  // ---------- 击杀粒子 ----------
+  clearEffects() { this.particles = []; this.decals = []; this.faces.clear(); }
+  // 一名士兵倒下：碎片和星星四散、烟团、冲击环，地上留一摊队伍颜色的墨迹。
+  spawnKill(f) {
+    if (this.reduced) return;
+    const u = f.unit, big = u.type === 'giant', base = teamColor(u.team, this.skin), cy = f.y - UNIT_HEIGHT[u.type] * .45;
+    const tint = mix(base, '#ffffff', .4), colors = ['#ffd84a', '#ffffff', tint, '#ffd84a', base, tint];
+    for (let i = 0, n = big ? 24 : 15; i < n; i++) {
+      const a = rand(0, TAU), speed = rand(big ? 120 : 95, big ? 270 : 230);
+      this.particles.push({ kind: ['star', 'shard', 'dot'][i % 3], x: f.x + Math.cos(a) * 6, y: cy + Math.sin(a) * 6, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed - 80, gravity: 340, drag: 1.5, t: 0, life: rand(.55, 1), size: rand(big ? 8 : 6, big ? 13 : 10.5), color: colors[i % colors.length], rot: rand(0, TAU), spin: rand(-9, 9) });
+    }
+    for (let i = 0, n = big ? 9 : 6; i < n; i++) {
+      const a = rand(0, TAU), speed = rand(20, 60);
+      this.particles.push({ kind: 'puff', x: f.x, y: cy + 8, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed * .6 - 24, gravity: -34, drag: 2.2, t: 0, life: rand(.55, .9), size: rand(big ? 15 : 11, big ? 23 : 17), color: '#fff8e6', rot: 0, spin: 0 });
+    }
+    this.particles.push({ kind: 'ring', x: f.x, y: cy, vx: 0, vy: 0, gravity: 0, drag: 0, t: 0, life: .42, size: big ? 74 : 54, color: '#ffffff', rot: 0, spin: 0 });
+    this.particles.push({ kind: 'flash', x: f.x, y: cy, vx: 0, vy: 0, gravity: 0, drag: 0, t: 0, life: .22, size: big ? 50 : 36, color: '#fffbe0', rot: rand(0, TAU), spin: 2 });
+    const spread = big ? 46 : 30;
+    this.decals.push({
+      x: f.x, y: f.y + 3, color: mix(base, INK, .35), t: 0, life: 3.6,
+      blobs: Array.from({ length: big ? 7 : 5 }, (_, i) => ({ dx: i ? rand(-spread, spread) * .5 : 0, dy: i ? rand(-spread, spread) * .2 : 0, r: i ? rand(big ? 7 : 5, big ? 13 : 9) : (big ? 22 : 15) })),
+      drops: Array.from({ length: big ? 7 : 5 }, () => { const a = rand(0, TAU), d = rand(spread * .55, spread); return { dx: Math.cos(a) * d, dy: Math.sin(a) * d * .45, r: rand(1.5, 3.2) }; })
+    });
+    if (this.decals.length > 26) this.decals.shift();
+    if (this.particles.length > 420) this.particles.splice(0, this.particles.length - 420);
+    this.kick(big ? 4 : 1.3);
+  }
+  stepParticles(dt) {
+    if (!dt) return;
+    for (const p of this.particles) { p.t += dt; const k = Math.exp(-p.drag * dt); p.vx *= k; p.vy = p.vy * k + p.gravity * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.spin * dt; }
+    this.particles = this.particles.filter(p => p.t < p.life);
+    for (const d of this.decals) d.t += dt;
+    this.decals = this.decals.filter(d => d.t < d.life);
+  }
+  drawDecals(c) {
+    for (const d of this.decals) {
+      const grow = Math.min(1, d.t / .16), fade = Math.min(1, (d.life - d.t) / 1.1);
+      c.save(); c.globalAlpha = .58 * fade; c.fillStyle = d.color; c.translate(d.x, d.y);
+      for (const b of d.blobs) { c.beginPath(); c.ellipse(b.dx * grow, b.dy * grow, b.r * grow * 1.25, b.r * grow * .5, 0, 0, TAU); c.fill(); }
+      for (const b of d.drops) { c.beginPath(); c.ellipse(b.dx * grow, b.dy * grow, b.r, b.r * .5, 0, 0, TAU); c.fill(); }
+      c.restore();
+    }
+  }
+  drawParticles(c) {
+    for (const p of this.particles) {
+      const k = p.t / p.life;
+      c.save(); c.translate(p.x, p.y);
+      if (p.kind === 'ring') { c.globalAlpha = 1 - k; ring(c, 0, 0, p.size * k, p.size * k * .8, INK, 5 * (1 - k) + 1.5); ring(c, 0, 0, p.size * k, p.size * k * .8, p.color, 3 * (1 - k) + .8); }
+      else if (p.kind === 'puff') { c.globalAlpha = (1 - k) * .85; ellipse(c, 0, 0, p.size * (.55 + k * .9), p.size * (.5 + k * .8), p.color); }
+      else if (p.kind === 'flash') {
+        // 爆闪：两个错开 45° 的四角星，迅速放大并淡出。
+        c.globalAlpha = 1 - k; c.rotate(p.rot); const r = p.size * (.45 + k * .9);
+        for (let n = 0; n < 2; n++) { c.rotate(n * Math.PI / 4); c.fillStyle = n ? '#ffd84a' : p.color; c.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * .22 : r * (n ? .72 : 1); c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } c.closePath(); c.fill(); }
+      }
+      else {
+        c.globalAlpha = 1 - k * k; c.rotate(p.rot); const size = p.size * (1 - k * .45);
+        if (p.kind === 'star') star(c, 0, 0, size, p.color, INK);
+        else if (p.kind === 'shard') { c.fillStyle = p.color; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); c.moveTo(size, 0); c.lineTo(-size * .6, size * .5); c.lineTo(-size * .3, -size * .55); c.closePath(); c.fill(); c.stroke(); }
+        else { ellipse(c, 0, 0, size * .55, size * .55, INK); ellipse(c, 0, 0, size * .55 - 1.2, size * .55 - 1.2, p.color); }
+      }
+      c.restore();
+    }
+  }
+
   drawUnit(c, u, time, build, g) {
     const def = TYPES[u.type], height = UNIT_HEIGHT[u.type], palette = u.team === 0 ? this.skin : 'red', reduced = this.reduced;
-    const key = u.id ?? `p${u.pid}`;
-    let face = this.faces.get(key) ?? (u.team === 0 ? 1 : -1);
+    const pose = this.pose(u, build), face = pose.flip;
     const ax = Math.cos(u.angle ?? 0), ay = Math.sin(u.angle ?? 0);
-    if (!build && u.angle !== undefined && Math.abs(ax) > .3) { face = ax > 0 ? 1 : -1; this.faces.set(key, face); }
     const moving = u.moving || 0, walk = u.walk || 0;
     const hop = reduced ? 0 : Math.abs(Math.sin(walk * .85)) * 5 * moving, tilt = reduced ? 0 : Math.sin(walk * .85) * .07 * moving;
     const wind = u.windupTotal ? 1 - u.windup / u.windupTotal : 0;
@@ -207,7 +292,7 @@ export class Renderer {
       c.rotate(tilt + face * (swing * .2 - wind * .13));
       c.scale(pop * (1 + wind * .05), pop * breathe * (1 - wind * .06));
     }
-    const options = { flip: face < 0 };
+    const options = { flip: face < 0, back: pose.back };
     if (this.drag?.unit?.pid === u.pid && u.pid !== undefined && build) c.globalAlpha = .28;
     if (!drawUnitImage(c, u.type, palette, 0, 3, height, options)) { ellipse(c, 0, -height * .4, height * .25, height * .4, teamColor(u.team, this.skin)); }
     if (u.flash > 0) drawUnitImage(c, u.type, palette, 0, 3, height, { ...options, alpha: Math.min(1, u.flash / .13) * .8, silhouette: '#ffffff' });
@@ -262,6 +347,8 @@ export class Renderer {
     const c = this.c, build = g.phase === 'build', reduced = this.reduced;
     if (!this.canvas.width) { this.resize(); if (!this.canvas.width) return; }
     const dt = Math.min(.05, Math.max(0, t - (this.lastT ?? t))); this.lastT = t; this.shake = this.shake > .15 ? this.shake * Math.exp(-dt * 11) : 0;
+    for (const f of g.fx) if (f.kind === 'death' && !this.seenFx.has(f)) { this.seenFx.add(f); this.spawnKill(f); }
+    this.stepParticles(dt * this.timeScale);
     const sx = this.shake ? (Math.random() - .5) * 2 * this.shake * this.scale : 0, sy = this.shake ? (Math.random() - .5) * 2 * this.shake * this.scale : 0;
     c.setTransform(1, 0, 0, 1, 0, 0);
     const field = this.field(); if (field) c.drawImage(field, sx, sy); else { c.fillStyle = '#a9d36a'; c.fillRect(0, 0, this.canvas.width, this.canvas.height); }
@@ -278,6 +365,7 @@ export class Renderer {
       if (!g.plan.length && this.words.yourZone) label(c, this.words.yourZone, W / 2, 329, 12, '#fff', { stroke: 'rgba(40,70,140,.9)', width: 3.5 });
     }
     for (const o of g.rocks) if (o.kind === 'pond') drawPond(c, o, time, reduced, this.theme);
+    this.drawDecals(c);
     if (build) this.drawInspection(c, this.inspect(g));
 
     // 墨水笔迹：滑动画兵时留下的痕迹。
@@ -295,12 +383,13 @@ export class Renderer {
     if (build && !this.drag) for (const ghost of this.guideGhosts || []) {
       if (g.placementError(ghost.type, ghost.x, ghost.y, ghost.team)) continue;
       const bob = reduced ? 0 : Math.sin(t * 4) * 2;
-      c.save(); c.globalAlpha = .5; drawUnitImage(c, ghost.type, this.skin, ghost.x, ghost.y + 3 - bob, UNIT_HEIGHT[ghost.type]); c.restore();
+      c.save(); c.globalAlpha = .5; drawUnitImage(c, ghost.type, this.skin, ghost.x, ghost.y + 3 - bob, UNIT_HEIGHT[ghost.type], { back: true }); c.restore();
       c.setLineDash([5, 5]); ring(c, ghost.x, ghost.y + 2, 22, 8, INK, 4); ring(c, ghost.x, ghost.y + 2, 22, 8, '#ffe08a', 2); c.setLineDash([]);
       label(c, this.unitName(ghost.type), ghost.x, ghost.y + 20, 11, '#fff', { width: 3 });
     }
     for (const s of g.shots) this.drawShot(c, s);
     for (const f of g.fx) drawEffect(c, f, this);
+    this.drawParticles(c);
     if (this.reticle && g.phase === 'battle') {
       const r = this.reticle, spin = reduced ? 0 : t * 1.5;
       ellipse(c, r.x, r.y, r.r, r.r * .8, 'rgba(255,220,90,.22)');

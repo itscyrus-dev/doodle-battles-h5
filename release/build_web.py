@@ -46,7 +46,7 @@ for ref in re.findall(r'url\(([^)]+)\)', css):
         missing.append(f'styles.css -> {ref}')
 units = ['knight', 'guard', 'archer', 'bomber', 'giant', 'lancer', 'healer', 'mage']
 themes = ['meadow', 'canyon', 'snow', 'citadel']
-needed = [f'units/{u}.webp' for u in units] + [f'icons/item-{i}.webp' for i in ['heal', 'smoke', 'rally', 'thunder', 'frost']]
+needed = [f'units/{u}{view}.webp' for u in units for view in ('', '-back')] + [f'icons/item-{i}.webp' for i in ['heal', 'smoke', 'rally', 'thunder', 'frost']]
 needed += [f'icons/{i}.webp' for i in ['coin', 'star', 'ink', 'trophy', 'daily', 'codex', 'hint', 'sandbox', 'palette', 'map']]
 needed += [f'{kind}-{t}.webp'.replace('bg-', 'bg/field-').replace('map-', 'map/').replace('rock-', 'obstacles/rock-') for kind in ['bg', 'map', 'rock'] for t in themes]
 needed += ['bg/home.webp', 'ui/logo.webp', 'ui/victory.webp', 'ui/defeat.webp', 'icon/icon-192.png', 'icon/icon-512.png', 'icon/apple-touch-icon.png', 'icon/favicon-64.png']

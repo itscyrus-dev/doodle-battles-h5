@@ -78,7 +78,7 @@ const SFX = {
   thunder: b => { noise(b, .12, .3, 8000, { type: 'highpass', sweep: .6 }); noise(b, .8, .24, 500, { sweep: .15 }); tone(b, 'sine', 80, 32, .7, .16); },
   freeze: b => { for (let i = 0; i < 5; i++) tone(b, 'sine', 900 + i * 320, 940 + i * 320, .28, .03, i * .045); noise(b, .4, .06, 6000, { type: 'highpass', sweep: 1 }); },
   mend: b => { tone(b, 'sine', 880, 884, .2, .04); tone(b, 'sine', 1320, 1326, .24, .035, .09); },
-  death: b => tone(b, 'sine', 330, 110, .16, .05),
+  death: b => { tone(b, 'sine', 330, 110, .16, .05); noise(b, .09, .05, 5200, { type: 'highpass', sweep: 1 }); tone(b, 'triangle', 980, 1500, .1, .028, .04); },
   item: b => { for (const [i, f] of [660, 880, 1100, 1320].entries()) tone(b, 'triangle', f, f, .14, .045, i * .05); },
   star: (b, n = 0) => { const f = [784, 988, 1175][Math.min(2, n)]; tone(b, 'triangle', f, f, .32, .08); tone(b, 'sine', f * 2, f * 2, .4, .04, .02); },
   coin: b => { tone(b, 'square', 1320, 1320, .05, .025); tone(b, 'square', 1760, 1760, .12, .025, .06); },

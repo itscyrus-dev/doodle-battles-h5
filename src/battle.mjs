@@ -77,7 +77,7 @@ export function createBattle(app) {
 
   // ---------- 进入、重置 ----------
   function reset(level = g.level, sandbox = g.sandbox, plan = null) {
-    input.cancel(); renderer.selectedPid = null; renderer.reticle = null; renderer.faces.clear(); targeting = false; hintOn = false; eraser = false;
+    input.cancel(); renderer.selectedPid = null; renderer.reticle = null; renderer.clearEffects(); targeting = false; hintOn = false; eraser = false;
     g = new Battle(level, sandbox);
     g.selectItem(itemUnlocked(save().item, save().unlocked) ? save().item : 'heal');
     g.plan = structuredClone(plan ?? (!sandbox ? save().formations[level] || [] : []));
@@ -373,7 +373,7 @@ export function createBattle(app) {
     for (const name of ['shoot', 'toss', 'cast', 'thrust', 'mend']) if (has(name)) audio.sfx(name);
     if (has('swing')) audio.sfx('swing');
     if (has('block')) audio.sfx('block'); else if (has('hit')) audio.sfx('hit');
-    if (has('death')) audio.sfx('death');
+    if (has('death')) { audio.sfx('death'); buzz(10); }
   }
 
   function frame(now, id) {
@@ -387,6 +387,8 @@ export function createBattle(app) {
     if (over() && !beat) { targeting = false; renderer.reticle = null; beat = { start: now, summary: finalize() }; update(); }
     // 停顿前0.14秒定格，随后以慢动作播完倒地与烟尘，再弹出战报。
     if (beat && !shown) { const age = (now - beat.start) / 1000; g.settle(age < .14 ? 0 : dt * (renderer.reduced ? 1 : .45)); if (age >= (renderer.reduced ? .6 : 1.25)) showResult(); }
+    // 粒子跟随战斗的时间：暂停时停住，2 倍速时加快，结算停顿时放慢。
+    renderer.timeScale = g.phase === 'paused' ? 0 : g.phase === 'battle' ? (targeting ? .25 : speed) : beat && !shown ? ((now - beat.start) / 1000 < .14 ? 0 : .45) : 1;
     renderer.draw(g, now / 1000);
     uiClock += dt; if (uiClock > .1) { update(); uiClock = 0; }
     requestAnimationFrame(next => frame(next, id));
