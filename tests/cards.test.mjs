@@ -3,10 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Battle, KEYWORDS, TACTICS, RELIC_FX } from '../src/engine.mjs';
 import { TYPES, UNIT_ORDER, ZONE } from '../src/data.mjs';
-import { CARDS, CARD_ORDER, STARTER_DECKS, KEYWORD_ORDER, TACTIC_ORDER, MOMENTUM, cardStats } from '../src/cards.mjs';
+import { CARDS, CARD_ORDER, STARTER_DECKS, KEYWORD_ORDER, TACTIC_ORDER, REFUND, cardStats } from '../src/cards.mjs';
 import { runMods, relicPerks } from '../src/relics.mjs';
 
-const field = (enemies = [], opts = {}) => new Battle({ index: -1, budget: 300, enemies, rocks: [], par: 40 }, { cards: true, momentum: MOMENTUM, item: null, ...opts });
+const field = (enemies = [], opts = {}) => new Battle({ index: -1, budget: 300, enemies, rocks: [], par: 40 }, { cards: true, refund: REFUND, item: null, ...opts });
 const squad = (card, type, n, kw = [], ink = 0) => ({ card, type, n, kw, ink });
 const run = (g, steps = 4805) => { for (let i = 0; i < steps && g.phase === 'battle'; i++) g.update(1 / 60); return g; };
 const foe = (type, x, y, extra = {}) => ({ type, x, y, team: 1, ...extra });
@@ -16,7 +16,7 @@ test('卡牌数据完整：兵种、人数、关键词和战术都存在；起�
     const c = CARDS[id];
     assert.ok(['unit', 'tactic'].includes(c.kind)); assert.ok(['common', 'uncommon', 'rare'].includes(c.rarity));
     if (c.kind === 'unit') { assert.ok(UNIT_ORDER.includes(c.type)); assert.ok(c.n >= 1 && c.n <= 4); assert.ok(c.cost >= TYPES[c.type].cost * c.n * .8); for (const k of c.kw || []) assert.ok(KEYWORD_ORDER.includes(k), k); }
-    else { assert.ok(TACTIC_ORDER.includes(c.effect)); assert.ok(c.cost >= 1 && c.cost <= MOMENTUM.max); }
+    else { assert.ok(TACTIC_ORDER.includes(c.effect)); assert.ok(c.cost >= 5 && c.cost <= 40); }
   }
   for (const deck of Object.values(STARTER_DECKS)) assert.ok(deck.every(id => CARDS[id]));
   const up = cardStats({ id: 'knights', up: true }), base = cardStats({ id: 'knights', up: false });
@@ -24,9 +24,9 @@ test('卡牌数据完整：兵种、人数、关键词和战术都存在；起�
   const giant = cardStats({ id: 'giant', up: true }); assert.equal(giant.n, 1); assert.equal(giant.cost, Math.round(CARDS.giant.cost * .7), '单人牌升级：墨水 −30%');
   assert.equal(cardStats({ id: 'knights', up: false }, { horde: true }).n, base.n + 1, '人海：3 人以上的小队多 1 人');
   assert.equal(cardStats({ id: 'archers', up: false }, { horde: true }).n, 2);
-  assert.equal(cardStats({ id: 't_frost', up: false }, { tactician: true }).cost, CARDS.t_frost.cost - 1, '军师：战术牌便宜 1 点');
+  assert.equal(cardStats({ id: 't_frost', up: false }, { tactician: true }).cost, Math.round(CARDS.t_frost.cost * .7), '军师：战术牌便宜 30%');
   assert.equal(cardStats({ id: 'guards', up: false }, { thrift: true }).cost, Math.round(CARDS.guards.cost * .9));
-  assert.deepEqual(relicPerks(['warcry', 'scholar', 'bounty']), { horde: false, tactician: false, thrift: false, momentum: 2, hand: 1, bounty: 3 });
+  assert.deepEqual(relicPerks(['warcry', 'scholar', 'bounty']), { horde: false, tactician: false, thrift: false, inkStart: 15, hand: 1, bounty: 3 });
 });
 
 test('打出兵牌：整队按队形放下，墨水按整张牌扣；同一张牌不能打两次；收回退还墨水；撤销也能恢复', () => {
@@ -91,18 +91,19 @@ test('关键词：鼓舞让附近队友加伤，齐射每第三箭多射一支',
   assert.equal(v.relicStats.volleys, 1); assert.ok(fired >= 4, `射出 ${fired} 支箭`);
 });
 
-test('战墨：开局有起始值，击杀和时间都会增加，有上限；战术牌花战墨，不够就打不出', () => {
-  const g = field([foe('knight', 400, 300), foe('knight', 400, 360)]); g.placeSquad(squad(0, 'knight', 1), 300, 300); g.start();
-  assert.equal(g.momentum, MOMENTUM.start);
-  assert.equal(g.cast('frost', { cost: 3 }), false, '战墨不够');
-  g.hit(g.units[1], 999, g.units[0]); assert.equal(g.momentum, MOMENTUM.start + MOMENTUM.perKill, '击杀加战墨');
-  g.update(MOMENTUM.perSeconds + .01); assert.equal(g.momentum, MOMENTUM.start + MOMENTUM.perKill + 1, '时间也会加');
-  g.momentum = MOMENTUM.max; g.gainMomentum(5); assert.equal(g.momentum, MOMENTUM.max);
-  assert.equal(g.cast('frost', { cost: 3 }), true); assert.equal(g.momentum, MOMENTUM.max - 3); assert.ok(g.effects.frost >= TACTICS.frost.duration - .001);
+test('一种资源：没用完的墨水开战后打战术牌，击倒敌人返还墨水，不够就打不出', () => {
+  const g = field([foe('knight', 400, 300), foe('knight', 400, 360)]); g.budget = 40;
+  g.placeSquad(squad(0, 'knight', 1), 300, 300); const left = g.remaining; g.start();
+  assert.equal(g.remaining, left, '开战时剩下的墨水原样带进战斗');
+  assert.equal(g.cast('frost', { cost: left + 1 }), false, '墨水不够');
+  g.hit(g.units[1], 999, g.units[0]); assert.equal(g.remaining, left + REFUND.perKill, '击倒敌人返还墨水'); assert.equal(g.relicStats.refunded, REFUND.perKill);
+  assert.equal(g.cast('frost', { cost: left + 1 }), true); assert.equal(g.remaining, left + REFUND.perKill - left - 1); assert.ok(g.effects.frost >= TACTICS.frost.duration - .001);
+  const h = field([foe('knight', 400, 300)], { refund: { perKill: 4, start: 15 } }); h.placeSquad(squad(0, 'knight', 1), 300, 300); const before = h.remaining; h.start();
+  assert.equal(h.remaining, before + 15, '战吼：开战时多 15 墨水');
 });
 
 test('战术牌：急救、落雷、增援、突击、墨盾、烟幕和集结；升级后更强', () => {
-  const g = field([foe('knight', 600, 300), foe('archer', 640, 200)]); g.placeSquad(squad(0, 'knight', 2), 260, 300); g.start(); g.momentum = 99;
+  const g = field([foe('knight', 600, 300), foe('archer', 640, 200)]); g.placeSquad(squad(0, 'knight', 2), 260, 300); g.start(); g.inkBonus = 999;
   const [a] = g.units; a.hp = 20;
   assert.equal(g.cast('heal', { up: true }), true); assert.ok(Math.abs(a.hp - (20 + a.max * TACTICS.heal.up)) < 1e-9);
   for (const u of g.units) u.hp = u.max; assert.equal(g.cast('heal'), false, '没人受伤时不浪费');

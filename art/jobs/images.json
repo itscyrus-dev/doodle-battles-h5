@@ -331,6 +331,16 @@
    "prompt": "Game logo wordmark that reads exactly: Draw & Clash. Chunky hand-lettered rounded letters on two lines (Draw & on the first line, Clash on the second), cream-white letter fill with a thick dark navy outline and a mustard-gold drop shadow, a yellow pencil drawn as a swoosh underline beneath the words, a small blue pennant flag on top of the letter h. Spelled correctly, no other words or letters. Isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
   },
   {
+   "id": "logo_zh",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P2",
+   "category": "brand",
+   "size": "1536x1024",
+   "transparent": true,
+   "prompt": "Game logo wordmark that reads exactly four simplified Chinese characters: 涂鸦小队, written left to right on a single line. Chunky hand-lettered rounded brush strokes, cream-white letter fill with a thick dark navy outline and a mustard-gold drop shadow, a yellow pencil drawn as a swoosh underline beneath the characters, a small blue pennant flag on top of the last character. The four characters must be written correctly, no other text, no English letters. Isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
    "id": "unit_knight",
    "kind": "image",
    "status": "todo",

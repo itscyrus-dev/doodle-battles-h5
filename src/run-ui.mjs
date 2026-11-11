@@ -43,7 +43,16 @@ export function createRunUI(app) {
   const chapterName = act => pick(CHAPTERS[Math.min(act, CHAPTERS.length - 1)].name);
 
   // ---------- 开局：选编制 ----------
+  // 第一次远征不选编制，直接用铁卫营（教学打完、主页点“开始”都走这里）；打完一局以后才让玩家挑编制。
+  function begin() {
+    const r = run();
+    if (r && r.screen !== 'over') { show(); return; }
+    if (app.save.runStats.runs) { app.go('home'); openStart(); return; }
+    app.save.run = newRun({ warband: 'iron' }); app.persist(); app.metrics.record('run_start', { warband: 'iron', first: true });
+    closeSheet(true); audio.sfx('start'); show();
+  }
   function openStart() {
+    if (!app.save.runStats.runs && !(run() && run().screen !== 'over')) { begin(); return; }
     let chosen = 'iron';
     const draw = () => {
       const sheet = openSheet({
@@ -282,5 +291,5 @@ export function createRunUI(app) {
     else if (r.screen === 'camp') showCamp();
     else if (r.screen === 'event') showEvent();
   }
-  return { show, openStart, render };
+  return { show, openStart, render, begin };
 }

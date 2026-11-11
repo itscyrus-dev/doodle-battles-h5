@@ -5,24 +5,19 @@
 // 用法：node tools/card-report.mjs [--runs 40]
 import { Battle, TACTICS } from '../src/engine.mjs';
 import { TYPES, H, MARGIN, TIME_LIMIT, starsFor } from '../src/data.mjs';
-import { newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, nodeOf, canExtraDraw, extraDraw, WARBAND_ORDER, MIN_DECK } from '../src/run.mjs';
-import { CARDS, HAND, RARITY_WEIGHT, cardStats } from '../src/cards.mjs';
+import { newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, nodeOf, WARBAND_ORDER, MIN_DECK } from '../src/run.mjs';
+import { CARDS, RARITY_WEIGHT, cardStats } from '../src/cards.mjs';
 import { ACTS, rng } from '../src/encounters.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? +process.argv[i + 1] : d; };
 const RUNS = arg('runs', 40);
 const alive = (g, team) => g.units.filter(u => u.team === team && u.hp > 0);
 
-// 布阵：兵牌从贵到便宜依次放，近战一排在前（x≈300），远程一排在后（x≈190），沿纵向均匀分开。
-// 手里兵牌的墨水比预算少得多时先加抽。重打时（attempt>0）换一种纵向站位。
+// 布阵：兵牌从贵到便宜依次放，近战一排在前（x≈300），远程一排在后（x≈190），沿纵向均匀分开；剩下的墨水留给战术牌。
+// 重打时（attempt>0）换一种纵向站位。
 function deploy(run, attempt, rand) {
-  let ctx = battleOf(run);
-  for (;;) {
-    const need = ctx.hand.filter(c => c.kind === 'unit').reduce((s, c) => s + c.cost, 0);
-    if (!canExtraDraw(run) || ctx.def.budget - need < HAND.extraCost + 20) break;
-    extraDraw(run); ctx = battleOf(run);
-  }
-  const g = new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, momentum: ctx.momentum });
+  const ctx = battleOf(run);
+  const g = new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, refund: ctx.refund });
   const units = ctx.hand.filter(c => c.kind === 'unit').sort((a, b) => b.cost - a.cost);
   const placed = [];
   for (const c of units) if (g.remaining >= c.cost) placed.push(c);
@@ -53,7 +48,7 @@ function useTactics(g, tactics, used) {
   if (!mine.length || !foes.length) return;
   const gap = Math.min(...mine.map(u => Math.min(...foes.map(v => Math.hypot(u.x - v.x, u.y - v.y)))));
   for (const c of tactics) {
-    if (used.has(c.index) || g.momentum < c.cost) continue;
+    if (used.has(c.index) || g.remaining < c.cost) continue;
     let point = null, go = false;
     if (c.effect === 'heal') go = mine.filter(u => u.hp < u.max * .6).length >= 2;
     else if (c.effect === 'thunder') {

@@ -60,8 +60,9 @@ export class Battle {
     this.selectedItem = opts.item === undefined ? 'heal' : opts.item;
     // 卡牌模式（远征）：墨水按整张牌扣，不限兵种人数；战墨在战斗中靠击杀获得，用来打战术牌。
     this.cardMode = !!opts.cards;
-    this.momentumRule = opts.momentum || null;
-    this.momentum = 0;
+    // 卡牌模式：refund = { perKill, start }，击倒敌人返还墨水、开战时额外的墨水；inkBonus 是返还的总数，inkUsed 是战术牌花掉的。
+    this.refund = opts.refund || null;
+    this.inkBonus = 0; this.inkUsed = 0;
     this.itemUsed = false;
     this.effects = { rally: 0, smoke: 0, frost: 0, assault: 0 };
   }
@@ -69,7 +70,7 @@ export class Battle {
   cost(type, team = 0) { return team === 0 ? this.mods?.cost?.[type] ?? TYPES[type].cost : TYPES[type].cost; }
   limit(type, team = 0) { return this.cardMode && team === 0 ? Infinity : team === 0 ? this.mods?.limit?.[type] ?? TYPES[type].limit : TYPES[type].limit; }
   get spent() { return this.plan.filter(u => u.team === 0).reduce((s, u) => s + (u.inkCost ?? this.cost(u.type)), 0); }
-  get remaining() { return this.budget - this.spent; }
+  get remaining() { return this.budget + this.inkBonus - this.inkUsed - this.spent; }
   count(type, team = 0, ignoreId = null) {
     return this.plan.filter(u => u.team === team && (!type || u.type === type) && (ignoreId === null || u.pid !== ignoreId)).length;
   }
@@ -208,7 +209,7 @@ export class Battle {
     if (kw?.veteran) def.hp *= KEYWORDS.veteran.hp;
     return {
       ...u, kw, id: i, def, hp: def.hp, max: def.hp,
-      route: u.route?.length ? u.route.map(p => ({ x: p.x, y: p.y })) : null, leg: 0, hold: !!u.hold, legBest: Infinity, legStall: 0, primed: false,
+      route: u.route?.length ? u.route.map(p => ({ x: p.x, y: p.y })) : null, routed: !!u.route?.length, shouted: false, leg: 0, hold: !!u.hold, legBest: Infinity, legStall: 0, primed: false,
       cool: .2 + (i % 5) * .07, flash: 0, swing: 0, walk: 0, moving: 0, angle: u.team === 0 ? 0 : Math.PI,
       windup: 0, windupTotal: 0, targetId: null, recoil: 0, hitAngle: 0, dx: u.team === 0 ? 1 : -1, dy: 0,
       damageDealt: 0, damageTaken: 0, deathAt: null, blockFlash: 0, threat: 0, chill: 0, run: 0, frozen: false, shield: 0, fervor: 0, volleyCount: 0
@@ -227,9 +228,9 @@ export class Battle {
     Object.assign(this, { phase: 'battle', elapsed: 0, healed: false, shots: [], fx: [], pending: [], puddles: [] });
     this.itemUsed = false;
     this.effects = { rally: 0, smoke: 0, frost: 0, assault: 0 };
-    this.momentum = this.momentumRule ? this.momentumRule.start : 0; this.momentumClock = 0;
+    this.inkBonus = this.refund?.start || 0; this.inkUsed = 0;
     this.itemStats = { healed: 0, prevented: 0, boostedAttacks: 0, struck: 0, strikeDamage: 0, frozen: 0 };
-    this.relicStats = { spring: 0, flanks: 0, primed: 0, arrived: 0, tactics: 0, momentum: 0, lifesteal: 0, shielded: 0, volleys: 0, reinforced: 0 };
+    this.relicStats = { spring: 0, flanks: 0, primed: 0, arrived: 0, tactics: 0, refunded: 0, lifesteal: 0, shielded: 0, volleys: 0, reinforced: 0 };
     this.feedback = null;
     this.stats = [0, 1].map(() => ({
       blocked: 0, explosionTaken: 0, damageTaken: 0, backlineDeaths: 0, stoneArrows: 0, arrowsFired: 0, charges: 0, chilled: 0, firstLoss: null,
@@ -285,7 +286,7 @@ export class Battle {
   }
 
   effect(x, y, kind, team = 0, extra = {}) {
-    const life = { death: .6, boom: .5, frostburst: .55, thunder: .5, healbeam: .35, charge: .36, flank: .5, primed: .45, arrive: .5, momentum: .8, shield: .45 }[kind] ?? .32;
+    const life = { death: .6, boom: .5, frostburst: .55, thunder: .5, healbeam: .35, charge: .36, flank: .5, primed: .45, arrive: .5, refund: .8, shield: .45, shout: 1.1 }[kind] ?? .32;
     this.fx.push({ x, y, kind, team, t: 0, life, ...extra });
   }
 
@@ -330,7 +331,7 @@ export class Battle {
     if (u.hp > 0 && owner?.kw?.frostbite && owner.team !== u.team) { if (u.chill <= 0) this.stats[u.team].chilled++; u.chill = Math.max(u.chill, KEYWORDS.frostbite.chill); }
     if (u.hp <= 0) {
       if (owner && owner.team !== u.team && owner.team === 0 && this.flags.fervor) owner.fervor = Math.min(RELIC_FX.fervor.max, owner.fervor + RELIC_FX.fervor.step);
-      if (u.team === 1 && this.momentumRule) this.gainMomentum(this.momentumRule.perKill, u);
+      if (u.team === 1 && this.refund) this.gainInk(this.refund.perKill, u);
       u.deathAt = this.elapsed;
       if (stats && !stats.firstLoss) stats.firstLoss = { type: u.type, time: this.elapsed };
       if (stats && def.backline) stats.backlineDeaths++;
@@ -348,12 +349,23 @@ export class Battle {
     if (this.inspirers?.length && this.inspirers.some(v => v.hp > 0 && v.team === u.team && Math.hypot(v.x - u.x, v.y - u.y) <= KEYWORDS.inspire.radius)) k *= KEYWORDS.inspire.mult;
     return k;
   }
-  gainMomentum(n, at = null) {
-    const before = this.momentum;
-    this.momentum = Math.min(this.momentumRule.max, this.momentum + n);
-    if (this.momentum > before) { this.relicStats.momentum += this.momentum - before; this.events.push('momentum'); if (at) this.effect(at.x, at.y, 'momentum', 0, { n: this.momentum - before }); }
+  // 击倒敌人返还墨水（卡牌模式）。
+  gainInk(n, at = null) {
+    if (!n) return;
+    this.inkBonus += n; this.relicStats.refunded += n; this.events.push('refund');
+    if (at) this.effect(at.x, at.y, 'refund', 0, { n });
   }
 
+
+  // 画路线的回报：我方近战沿路线打到敌方后排、或者从背后砍中敌人时，头顶弹一句大字。只是表现，不影响数值；
+  // 每名士兵一场最多一次，全场至少隔 1.2 秒，免得刷屏。有侧击墨时背后那一下由遗物自己提示。
+  shout(u, target) {
+    if (u.team !== 0 || this.sandbox || u.shouted || this.elapsed - (this.lastShout ?? -9) < 1.2) return;
+    const text = u.routed && TYPES[target.type].backline ? 'raid' : !this.flags.flank && this.behind(u, target) ? 'outflank' : null;
+    if (!text) return;
+    u.shouted = true; this.lastShout = this.elapsed;
+    const q = center(target); this.effect(q.x, q.y, 'shout', 0, { text }); this.events.push('shout');
+  }
   // 攻击者在目标身后（相对目标的朝向）时算侧击。
   behind(u, target) { return Math.abs(wrapAngle(Math.atan2(u.y - target.y, u.x - target.x) - target.angle)) > RELIC_FX.flankAngle; }
 
@@ -391,6 +403,7 @@ export class Battle {
       this.events.push('flank');
     }
     this.effect(p.x, p.y, charged ? 'charge' : 'slash', u.team, { angle: u.angle, heavy: u.type === 'giant' });
+    this.shout(u, target);
     this.hit(target, def.damage * mult * bonus * boost, u);
     if (charged) { this.stats[u.team].charges++; this.events.push('charge'); }
     u.run = 0;
@@ -479,7 +492,7 @@ export class Battle {
   // 打出一张战术牌：花掉战墨，立刻生效或在落点生效。up 表示升级过的牌。返回是否成功。
   cast(effect, { up = false, point = null, cost = 0 } = {}) {
     const T = TACTICS[effect];
-    if (this.phase !== 'battle' || !T || this.momentum < cost) return false;
+    if (this.phase !== 'battle' || !T || this.remaining < cost) return false;
     const pick = (base, better) => (up ? better : base), inField = p => p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H;
     if (effect === 'heal') {
       let n = 0;
@@ -502,7 +515,7 @@ export class Battle {
       this.effects[effect] = Math.max(this.effects[effect] || 0, pick(T.duration, T.up));
       if (effect === 'frost') { this.itemStats.frozen = this.units.filter(u => u.team === 1 && u.hp > 0).length; this.events.push('freeze'); }
     }
-    this.momentum -= cost; this.relicStats.tactics++;
+    this.inkUsed += cost; this.relicStats.tactics++;
     this.say({ kind: 'tactic', effect }, 1.4);
     this.events.push('item');
     return true;
@@ -539,7 +552,6 @@ export class Battle {
     for (const p of this.pending) { p.t -= dt; if (p.t <= 0) { p.done = true; this.strike(p); } }
     if (this.pending.length) this.pending = this.pending.filter(p => !p.done);
     if (this.puddles.length) { for (const p of this.puddles) p.t -= dt; this.puddles = this.puddles.filter(p => p.t > 0); }
-    if (this.momentumRule?.perSeconds) { this.momentumClock += dt; if (this.momentumClock >= this.momentumRule.perSeconds) { this.momentumClock -= this.momentumRule.perSeconds; this.gainMomentum(1); } }
 
     const flags = this.flags, alive = this.units.filter(u => u.hp > 0);
     // 箭矢按身体高度飞行，所以把障碍上移到同一高度再判断；水塘不挡箭。

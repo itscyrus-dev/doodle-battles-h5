@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Battle } from '../src/engine.mjs';
 import { TYPES, W, H, ZONE, MARGIN, TIME_LIMIT } from '../src/data.mjs';
 import { makeEncounter, expectedInk, stepOf, ACTS, ROWS, TEMPLATES, BOSSES } from '../src/encounters.mjs';
-import { makeMap, newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, normalizeRun, abandon, runPayout, nodeOf, isFight, WARBANDS, EVENTS, drawHand, extraDraw, canExtraDraw, mulligan, canMulligan, handSize, MIN_DECK, WIN_INK } from '../src/run.mjs';
+import { makeMap, newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, normalizeRun, abandon, runPayout, nodeOf, isFight, WARBANDS, EVENTS, drawHand, handSize, MIN_DECK, WIN_INK } from '../src/run.mjs';
 import { CARDS, HAND } from '../src/cards.mjs';
 import { RELICS } from '../src/relics.mjs';
 import { validRoute } from '../src/routes.mjs';
@@ -73,17 +73,14 @@ test('新开远征：三个编制各有 8 张起始牌和一件遗物；第一�
   const run = newRun({ seed: 3 }); assert.equal(enter(run, '0-5-0'), false, '不能跳到后面的节点');
 });
 
-test('进入战斗时抽手牌：同一种子同一节点抽到同样的牌；兵牌在前；多抽花墨水；重抽每场一次', () => {
+test('进入战斗时抽手牌：同一种子同一节点抽到同样的牌；兵牌在前；击倒敌人返还墨水', () => {
   const a = newRun({ seed: 11 }), b = newRun({ seed: 11 });
   enter(a, available(a)[0]); enter(b, available(b)[0]);
   assert.deepEqual(a.hand, b.hand); assert.equal(a.hand.length, handSize(a)); assert.equal(new Set(a.hand).size, a.hand.length);
   const kinds = a.hand.map(i => CARDS[a.deck[i].id].kind); assert.deepEqual(kinds, [...kinds].sort((x, y) => (x === 'tactic') - (y === 'tactic')));
-  const ctx = battleOf(a); assert.equal(ctx.def.budget, a.ink); assert.equal(ctx.hand.length, a.hand.length); assert.ok(ctx.momentum.start >= 1);
-  assert.equal(canMulligan(a), true); assert.equal(mulligan(a), true); assert.equal(mulligan(a), false, '重抽每场一次');
-  const before = a.hand.length; assert.ok(extraDraw(a) >= 0); assert.equal(a.hand.length, before + 1);
-  assert.equal(battleOf(a).def.budget, a.ink - HAND.extraCost, '多抽一张少 10 墨水');
-  while (canExtraDraw(a)) extraDraw(a); assert.equal(a.extra, HAND.extraMax);
-  const big = newRun({ seed: 12 }); big.relics.push('scholar'); assert.equal(handSize(big), HAND.size + 1, '博览：手牌 +1');
+  const ctx = battleOf(a); assert.equal(ctx.def.budget, a.ink); assert.equal(ctx.hand.length, a.hand.length); assert.ok(ctx.refund.perKill > 0); assert.equal(ctx.refund.start, 0);
+  const loud = newRun({ seed: 11 }); loud.relics.push('warcry'); enter(loud, available(loud)[0]); assert.equal(battleOf(loud).refund.start, 15, '战吼：开战时多 15 墨水');
+  const big = newRun({ seed: 12 }); big.relics.push('scholar'); assert.equal(handSize(big), HAND.size + 1, '兵书：手牌 +1');
 });
 
 test('打赢普通战：拿金币、墨水上限 +5、从三张牌里挑一张；输了扣心、保留手牌和阵容重打', () => {
@@ -166,7 +163,7 @@ test('存档校验：正常的远征原样恢复，坏数据整局作废，旧�
   assert.equal(normalizeRun(null), null); assert.equal(normalizeRun({ ...run, gen: 1 }), null);
   assert.equal(normalizeRun({ ...run, deck: [{ id: 'dragon', up: false }] }), null); assert.equal(normalizeRun({ ...run, hearts: 9 }), null);
   assert.equal(normalizeRun({ ...run, at: 'nowhere' }), null); assert.equal(normalizeRun({ ...run, relics: ['thick', 'thick'] }), null);
-  assert.equal(normalizeRun({ ...run, hand: [0, 0] }), null); assert.equal(normalizeRun({ ...run, extra: 9 }), null);
+  assert.equal(normalizeRun({ ...run, hand: [0, 0] }), null); assert.equal(normalizeRun({ ...run, extra: 9, mulligan: true }).extra, undefined, '0.11.0 存档里加抽、重抽的旧字段直接丢掉');
   if (run.hand) {
     const unit = run.hand.find(i => CARDS[run.deck[i].id].kind === 'unit');
     const draft = normalizeRun({ ...run, draft: [{ card: unit, type: CARDS[run.deck[unit].id].type, x: 200, y: 300, route: [{ x: 'a' }] }, { card: 99, type: 'knight', x: 1, y: 1 }] }).draft;
@@ -175,15 +172,15 @@ test('存档校验：正常的远征原样恢复，坏数据整局作废，旧�
   const over = newRun({ seed: 52 }); abandon(over); assert.equal(normalizeRun(over).result, 'abandoned');
 });
 
-test('遭遇战能直接交给卡牌模式的战斗：整队放下、打出战术牌、击杀攒战墨', () => {
+test('遭遇战能直接交给卡牌模式的战斗：整队放下、打出战术牌、击倒敌人返还墨水', () => {
   const run = newRun({ seed: 5, warband: 'raiders' }); enter(run, available(run)[0]);
-  const { def, mods, hand, momentum } = battleOf(run), g = new Battle(def, { mods, cards: true, momentum, item: null });
+  const { def, mods, hand, refund } = battleOf(run), g = new Battle(def, { mods, cards: true, refund, item: null });
   const unit = hand.find(c => c.kind === 'unit');
   assert.equal(g.placeSquad({ card: unit.index, type: unit.type, n: unit.n, kw: unit.kw, ink: unit.cost }, 220, 300), '');
   assert.equal(g.plan.length, unit.n); assert.equal(g.spent, unit.cost); assert.equal(g.start(), true);
-  assert.equal(g.momentum, momentum.start);
+  const left = g.remaining;
   for (let i = 0; i < TIME_LIMIT * 60 + 5 && g.phase === 'battle'; i++) g.update(1 / 60);
   assert.ok(['won', 'lost'].includes(g.phase));
   const kills = g.units.filter(u => u.team === 1 && u.hp <= 0).length;
-  if (kills) assert.ok(g.relicStats.momentum >= Math.min(kills, momentum.max - momentum.start));
+  assert.equal(g.relicStats.refunded, kills * refund.perKill, '每击倒一名敌人返还墨水'); assert.ok(g.remaining >= left);
 });

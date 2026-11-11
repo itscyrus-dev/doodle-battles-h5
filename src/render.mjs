@@ -125,7 +125,10 @@ function drawEffect(c, f, renderer) {
     if (!reduced) { c.rotate(f.angle || 0); for (let i = -1; i <= 1; i++) line(c, -24 - p * 12, i * 8, 6 - p * 6, i * 8, '#fff6d6', 3 * (1 - p) + .5); }
   } else if (f.kind === 'primed') {
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, r = 8 + p * 26; line(c, Math.cos(a) * r * .5, Math.sin(a) * r * .5, Math.cos(a) * r, Math.sin(a) * r, '#ffd84a', 3.5 * (1 - p) + .5); }
-  } else if (f.kind === 'momentum') {
+  } else if (f.kind === 'shout') {
+    const pop = Math.min(1, p * 5), size = 24 * (.75 + .25 * pop);
+    label(c, renderer.words[f.text] || '', 0, -height(f) - 22 - p * 24, size, '#ffe08a', { stroke: '#22304a', width: 6, weight: 900 });
+  } else if (f.kind === 'refund') {
     label(c, `+${f.n || 1}`, 0, -height(f) - p * 22, 15, '#cfe6ff', { stroke: '#22304a', width: 4 });
     if (!reduced) ellipse(c, 0, -height(f) * .5, 6 + p * 10, 6 + p * 10, `rgba(80,140,255,${.35 * (1 - p)})`);
   } else if (f.kind === 'shield') {
@@ -310,11 +313,14 @@ export class Renderer {
     for (const u of list) {
       const route = build ? u.route : u.route?.slice(u.leg);
       const mine = u.team === 0, focus = build && (this.selection?.has(u.pid) || this.hoverPid === u.pid);
+      // 开战后头两秒半，我方的路线先亮一下再淡下去：看得出小队正在照着你画的线走。
+      const glow = !build && mine ? Math.max(0, 1 - g.elapsed / 2.5) : 0;
       if (route?.length) {
         const pts = [{ x: u.x, y: u.y }, ...route], color = mine ? BLUE_INK : RED_INK;
-        c.save(); c.globalAlpha = build ? (focus ? 1 : mine ? .85 : .75) : .35; c.lineCap = 'round'; c.lineJoin = 'round';
+        c.save(); c.globalAlpha = build ? (focus ? 1 : mine ? .85 : .75) : .35 + .6 * glow; c.lineCap = 'round'; c.lineJoin = 'round';
         c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
-        c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = focus ? 8 : 6.5; c.stroke();
+        c.strokeStyle = glow ? `rgba(255,230,140,${.9 * glow})` : 'rgba(255,255,255,.9)'; c.lineWidth = (focus ? 8 : 6.5) + 6 * glow; c.stroke();
+        if (glow) { c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 6.5; c.stroke(); }
         c.setLineDash(mine ? [12, 7] : [7, 7]); c.lineDashOffset = this.reduced ? 0 : -t * 22;
         c.strokeStyle = color; c.lineWidth = focus ? 4 : 3; c.stroke(); c.setLineDash([]);
         const a = pts.at(-2), b = pts.at(-1), ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -337,6 +343,27 @@ export class Renderer {
     line(c, 0, 0, 0, -26, INK, 4); line(c, 0, 0, 0, -26, '#fff8e7', 1.6);
     c.beginPath(); c.moveTo(1, -26); c.lineTo(18, -20); c.lineTo(1, -13); c.closePath(); c.fillStyle = color; c.strokeStyle = INK; c.lineWidth = 2.2; c.fill(); c.stroke();
     ellipse(c, 0, 1, 6, 2.4, 'rgba(25,40,55,.3)');
+    c.restore();
+  }
+  // 教学用的引导线：一支“笔”沿着金色虚线反复画过去，告诉玩家从哪里拖到哪里。
+  drawGuidePath(c, t) {
+    const pts = this.guidePath; if (!pts || pts.length < 2) return;
+    const lens = pts.slice(1).map((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y)), total = lens.reduce((a, b) => a + b, 0);
+    const k = this.reduced ? 1 : Math.min(1, (t % 2.4) / 1.8), want = total * k;
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+    c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 9; c.stroke();
+    c.setLineDash([10, 8]); c.lineDashOffset = this.reduced ? 0 : -t * 20; c.strokeStyle = 'rgba(227,165,28,.75)'; c.lineWidth = 4; c.stroke(); c.setLineDash([]);
+    let left = want, head = pts[0]; c.beginPath(); c.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < lens.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      if (left >= lens[i]) { c.lineTo(b.x, b.y); head = b; left -= lens[i]; continue; }
+      const f = left / lens[i]; head = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }; c.lineTo(head.x, head.y); break;
+    }
+    c.strokeStyle = '#e3a51c'; c.lineWidth = 6; c.stroke();
+    const pulse = this.reduced ? 0 : Math.sin(t * 8) * 2;
+    ellipse(c, head.x, head.y, 11 + pulse, 11 + pulse, 'rgba(255,216,74,.35)');
+    ellipse(c, head.x, head.y, 7, 7, '#fffdf2'); ring(c, head.x, head.y, 7, 7, INK, 2.5);
     c.restore();
   }
   // 正在画的路线或圈选。
@@ -503,6 +530,7 @@ export class Renderer {
       c.setLineDash([5, 5]); ring(c, ghost.x, ghost.y + 2, 22, 8, INK, 4); ring(c, ghost.x, ghost.y + 2, 22, 8, '#ffe08a', 2); c.setLineDash([]);
       label(c, this.unitName(ghost.type), ghost.x, ghost.y + 20, 11, '#fff', { width: 3 });
     }
+    if (build && this.guidePath && !this.drag && !this.sketch) this.drawGuidePath(c, t);
     this.drawHoldFlags(c, g, build);
     for (const s of g.shots) this.drawShot(c, s);
     for (const f of g.fx) drawEffect(c, f, this);

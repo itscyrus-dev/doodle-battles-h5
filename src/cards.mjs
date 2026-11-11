@@ -3,7 +3,7 @@ import { KEYWORDS, TACTICS } from './engine.mjs';
 
 export const KEYWORD_ORDER = Object.keys(KEYWORDS);
 export const TACTIC_ORDER = Object.keys(TACTICS);
-// rarity：common 常见、uncommon 少见、rare 稀有。兵牌的 cost 是墨水；战术牌的 cost 是战墨。
+// rarity：common 常见、uncommon 少见、rare 稀有。cost 都是墨水：兵牌在布阵时花，战术牌在开战后用剩下的墨水打出。
 export const CARDS = {
   knights: { kind: 'unit', type: 'knight', n: 3, cost: 28, rarity: 'common' },
   chargers: { kind: 'unit', type: 'knight', n: 2, kw: ['charge'], cost: 24, rarity: 'common' },
@@ -23,14 +23,14 @@ export const CARDS = {
   medic: { kind: 'unit', type: 'healer', n: 1, cost: 22, rarity: 'common' },
   medics: { kind: 'unit', type: 'healer', n: 2, cost: 42, rarity: 'uncommon' },
   mage: { kind: 'unit', type: 'mage', n: 1, cost: 26, rarity: 'uncommon' },
-  t_heal: { kind: 'tactic', effect: 'heal', cost: 1, rarity: 'common' },
-  t_smoke: { kind: 'tactic', effect: 'smoke', cost: 1, rarity: 'common' },
-  t_rally: { kind: 'tactic', effect: 'rally', cost: 2, rarity: 'common' },
-  t_thunder: { kind: 'tactic', effect: 'thunder', cost: 2, targeted: true, rarity: 'uncommon' },
-  t_reinforce: { kind: 'tactic', effect: 'reinforce', cost: 2, targeted: true, rarity: 'uncommon' },
-  t_assault: { kind: 'tactic', effect: 'assault', cost: 2, rarity: 'uncommon' },
-  t_shield: { kind: 'tactic', effect: 'shield', cost: 2, rarity: 'uncommon' },
-  t_frost: { kind: 'tactic', effect: 'frost', cost: 3, rarity: 'rare' }
+  t_heal: { kind: 'tactic', effect: 'heal', cost: 10, rarity: 'common' },
+  t_smoke: { kind: 'tactic', effect: 'smoke', cost: 10, rarity: 'common' },
+  t_rally: { kind: 'tactic', effect: 'rally', cost: 15, rarity: 'common' },
+  t_thunder: { kind: 'tactic', effect: 'thunder', cost: 20, targeted: true, rarity: 'uncommon' },
+  t_reinforce: { kind: 'tactic', effect: 'reinforce', cost: 20, targeted: true, rarity: 'uncommon' },
+  t_assault: { kind: 'tactic', effect: 'assault', cost: 15, rarity: 'uncommon' },
+  t_shield: { kind: 'tactic', effect: 'shield', cost: 15, rarity: 'uncommon' },
+  t_frost: { kind: 'tactic', effect: 'frost', cost: 25, rarity: 'rare' }
 };
 export const CARD_ORDER = Object.keys(CARDS);
 export const RARITY_WEIGHT = { common: 6, uncommon: 3, rare: 1 };
@@ -40,19 +40,20 @@ export const STARTER_DECKS = {
   raiders: ['knights', 'chargers', 'lancers', 'lancers', 'archers', 'archers', 't_assault', 't_heal'],
   sappers: ['guards', 'guards', 'archers', 'archers', 'bomber', 'bomber', 't_smoke', 't_thunder']
 };
-// 手牌与战墨的规则。
-export const HAND = { size: 5, extraCost: 10, extraMax: 3 };
+// 手牌：每场随机抽几张。
+export const HAND = { size: 6 };
 // 卡牌战的出战人数上限（战役是 10 人），扩编令遗物在此基础上再加。
 export const CARD_TEAM_LIMIT = 14;
-export const MOMENTUM = { start: 1, perKill: 1, perSeconds: 8, max: 9 };
+// 开战后每击倒一名敌人返还的墨水（只能用来打战术牌，因为这时已经不能出兵）。
+export const REFUND = { perKill: 4 };
 
 // 升级：小队（2 人以上）多 1 人、墨水不变；单人牌墨水 −30%；战术牌换成 TACTICS 里的 up 数值。
 export const UPGRADE = { extra: 1, single: .7 };
 // 一张牌（牌库里的一项 { id, up }）实际放出的人数、墨水和战墨。horde 是“人海”遗物：3 人以上的小队多 1 人。
-// thrift 是“省墨”遗物：兵牌墨水 −10%；tactician 是“军师”：战术牌战墨 −1（最少 1）。
+// thrift 是“省墨”遗物：兵牌墨水 −10%；tactician 是“军师”：战术牌墨水 −30%。
 export function cardStats(entry, { horde = false, tactician = false, thrift = false } = {}) {
   const c = CARDS[entry.id];
-  if (c.kind === 'tactic') return { ...c, id: entry.id, up: !!entry.up, cost: Math.max(1, c.cost - (tactician ? 1 : 0)) };
+  if (c.kind === 'tactic') return { ...c, id: entry.id, up: !!entry.up, cost: Math.round(c.cost * (tactician ? .7 : 1)) };
   const up = !!entry.up, single = c.n === 1;
   const n = c.n + (up && !single ? UPGRADE.extra : 0) + (horde && c.n >= 3 ? 1 : 0);
   const cost = Math.round(c.cost * (up && single ? UPGRADE.single : 1) * (thrift ? .9 : 1));

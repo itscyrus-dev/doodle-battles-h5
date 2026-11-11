@@ -16,7 +16,7 @@ export function cardText(c) {
   return [t('card.squad', { name: t(`unit.${c.type}.name`), n: c.n }), ...(c.kw || []).map(k => `${kwName(k)}：${t(`kw.${k}.desc`)}`)].join('\n');
 }
 export const cardArt = (c, size = 96) => (c.kind === 'unit' ? `<canvas width="${size}" height="${size}" data-unit="${c.type}"></canvas>` : img(`icons/${TACTIC_ICON[c.effect]}.webp`));
-export const costBadge = c => `<span class="pcost ${c.kind}">${c.kind === 'unit' ? img('icons/ink.webp') : img('icons/momentum.webp')}${c.cost}</span>`;
+export const costBadge = c => `<span class="pcost ${c.kind}">${img('icons/ink.webp')}${c.cost}</span>`;
 export const kindLabel = c => `${t(c.kind === 'unit' ? 'card.unit' : 'card.tactic')} · ${t(`rarity.${CARDS[c.id].rarity}`)}`;
 // 牌面（用在战利品、商店、牌库里）：类别、费用、图、名字、说明。
 export function cardFace(entry, perks = {}) {

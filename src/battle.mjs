@@ -1,4 +1,5 @@
-// 战斗界面（电脑版）：布阵、行军路线、开战、道具、引导和结算。战役、沙盒和远征共用；模拟在 engine.mjs。
+// 战斗界面（电脑版）：布阵、行军路线、开战、道具、引导和结算。战役、沙盒、远征和新手教学共用；模拟在 engine.mjs。
+// 远征和教学是“卡牌模式”：没有三支笔和右栏，左栏是手牌，把牌拖到战场上出兵。
 import { Battle, TACTICS } from './engine.mjs';
 import { TYPES, LEVELS, CHAPTERS, ITEMS, UNIT_ORDER, ITEM_ORDER, TEAM_LIMIT, W, H, TIME_LIMIT, starsFor, unitUnlocked, itemUnlocked } from './data.mjs';
 import { Renderer, paintUnit } from './render.mjs';
@@ -10,10 +11,10 @@ import { FrameSamples } from './playtest.mjs';
 import { draftOf, applyDraft } from './drafts.mjs';
 import { recordBattle, recordRunBattle, buyHint, HINT_COST, REWARDS } from './meta.mjs';
 import { SOLUTIONS } from './solutions.mjs';
-import { battleOf, finishBattle, canExtraDraw, extraDraw, canMulligan, mulligan } from './run.mjs';
-import { HAND } from './cards.mjs';
+import { battleOf, finishBattle } from './run.mjs';
+import { REFUND } from './cards.mjs';
 import { cardName, kwName, cardText, cardArt } from './card-view.mjs';
-import { BOSSES } from './encounters.mjs';
+import { LESSONS, lessonCtx } from './tutorial.mjs';
 import { t, pick } from './i18n.mjs';
 import * as audio from './audio.mjs';
 import { $, $$, esc, icon, img, starsMarkup, toast, openSheet, closeSheet, sheetOpen, buzz, tipAttrs } from './ui.mjs';
@@ -32,11 +33,15 @@ export function createBattle(app) {
   // 换关期间旧的 g 还在，这时刷新界面会把旧阵容存进新模式的草稿里，所以先挡住。
   let resetting = false;
   const lessonFlags = new Map(), lastAttempts = new Map();
+  // 教学：第几课；firstRouteAt 是这次打开游戏后第一次画出路线的时刻（试玩记录用）。
+  let lessonIndex = 0, firstRouteAt = null; const sessionStart = performance.now();
   const save = () => app.save, run = () => app.save.run;
   const flags = () => { if (!lessonFlags.has(g.level)) lessonFlags.set(g.level, { ...save().lessonActions[g.level] }); return lessonFlags.get(g.level); };
   const over = () => g.phase === 'won' || g.phase === 'lost';
   const fighting = () => g.phase === 'battle' || g.phase === 'paused';
-  const campaign = () => mode === 'campaign', inRun = () => mode === 'run';
+  const campaign = () => mode === 'campaign', inRun = () => mode === 'run', tutorial = () => mode === 'tutorial', cards = () => mode === 'run' || mode === 'tutorial';
+  // 只在内容变化时才改写，免得每帧重建元素、提示框闪烁。
+  const setHTML = (id, html) => { const node = el(id); if (node.dataset.html !== html) { node.innerHTML = html; node.dataset.html = html; } };
 
   // ---------- 文案 ----------
   function errorText(code, params = {}) {
@@ -49,19 +54,22 @@ export function createBattle(app) {
   }
   function titles() {
     if (mode === 'sandbox') return [t('battle.sandboxSub'), t('battle.sandbox')];
+    if (tutorial()) return [t('tutorial.kicker', { n: lessonIndex + 1, total: LESSONS.length }), t(`tutorial.${ctx.lesson.id}.name`)];
     if (inRun()) { const r = run(), node = ctx.node; return [`${t('run.title')} · ${t('run.battleTitle', { act: r.act + 1, floor: node.row + 1 })}`, `${t(`node.${node.kind}`)} · ${pick(ctx.encounter.name)}`]; }
     return [`${t('map.chapter', { n: LEVELS[g.level].chapter + 1 })} · ${pick(CHAPTERS[LEVELS[g.level].chapter].name)}`, `${g.level + 1} · ${pick(LEVELS[g.level].title)}`];
   }
   function relabel() {
     renderer.words = {
       victory: mode === 'sandbox' ? t('result.sandboxWin') : t('battle.victory'), defeat: mode === 'sandbox' ? t('result.sandboxLose') : t('battle.defeat'), timeUp: t('battle.timeUp'),
-      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy')
+      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), raid: t('battle.raid'), outflank: t('battle.outflank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy')
     };
     el('b-back').innerHTML = icon('back'); el('b-back').setAttribute('aria-label', t('common.back'));
     el('b-undo').innerHTML = icon('undo'); el('b-undo').setAttribute('aria-label', t('battle.undo')); el('b-undo').dataset.tipTitle = `${t('battle.undo')} · Ctrl+Z`;
     el('b-clear').innerHTML = icon('trash'); el('b-clear').setAttribute('aria-label', t('battle.clear')); el('b-clear').dataset.tipTitle = t('battle.clear');
     el('coach-skip').textContent = t('guide.skip');
-    el('recycle').textContent = t('recycle.zone');
+    el('recycle').textContent = cards() ? t('recycle.cards') : t('recycle.zone');
+    el('b-help').textContent = '?'; el('b-help').setAttribute('aria-label', t('help.title')); el('b-help').dataset.tipTitle = t('help.title');
+    if (cards()) Object.assign(el('b-inkpill').dataset, { tipTitle: t('ink.name'), tip: t('ink.tip', { n: REFUND.perKill }) }); else { delete el('b-inkpill').dataset.tipTitle; delete el('b-inkpill').dataset.tip; }
     el('b-autofill').textContent = t('battle.autofill');
     el('b-redeploy').textContent = inRun() ? t('run.surrender') : t('battle.redeploy');
     el('arena').setAttribute('aria-label', t('battle.tip.build'));
@@ -72,7 +80,8 @@ export function createBattle(app) {
 
   // ---------- 左栏：三支笔和兵种卡 ----------
   function buildTools() {
-    el('b-tools').innerHTML = TOOLS.filter(([id]) => !(inRun() && id === 'erase')).map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(inRun() && id === 'deploy' ? 'tool.deploy.tipCards' : `tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
+    if (cards()) { el('b-tools').innerHTML = ''; return; }
+    el('b-tools').innerHTML = TOOLS.map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(`tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
     for (const b of $$('[data-tool]', el('b-tools'))) b.onclick = () => setTool(b.dataset.tool);
   }
   function setTool(tool) { input.setTool(tool); for (const b of $$('[data-tool]', el('b-tools'))) b.classList.toggle('on', b.dataset.tool === tool); update(); }
@@ -87,16 +96,18 @@ export function createBattle(app) {
   const playedCards = () => new Set(g.plan.filter(u => u.card !== undefined).map(u => u.card));
   function buildHand() {
     el('roster').className = 'roster hand';
+    if (!handCards().length) {
+      el('roster').innerHTML = `<div class="lesson-card"><small>${esc(titles()[0])}</small><b>${esc(titles()[1])}</b><p>${esc(t(`tutorial.${ctx?.lesson?.id || 'route'}.side`))}</p></div>`;
+      el('b-handbar').hidden = true; return;
+    }
     el('roster').innerHTML = handCards().map((c, i) => `<button class="hcard ${c.kind} ${c.up ? 'up' : ''}" data-hand="${c.index}" ${tipAttrs(`${cardName(c.id)}${c.up ? '+' : ''}`, cardText(c))}>
         <span class="key"><kbd>${i + 1}</kbd></span><span class="art">${cardArt(c)}</span>
         <span class="body"><b>${esc(cardName(c.id))}${c.up ? '+' : ''}</b><small>${c.kind === 'unit' ? `${esc(t(`unit.${c.type}.name`))} ×${c.n}` : esc(t('card.tactic'))}</small>${c.kw?.length ? `<i>${c.kw.map(k => esc(kwName(k))).join(' · ')}</i>` : ''}</span>
-        <span class="cost ${c.kind}">${c.kind === 'unit' ? img('icons/ink.webp') : img('icons/momentum.webp')}${c.cost}</span><span class="state"></span></button>`).join('');
+        <span class="cost ${c.kind}">${img('icons/ink.webp')}${c.cost}</span><span class="state"></span></button>`).join('');
     for (const cv of $$('canvas[data-unit]', el('roster'))) paintUnit(cv, cv.dataset.unit, save().skin);
-    for (const b of $$('[data-hand]', el('roster'))) b.onclick = () => useCard(+b.dataset.hand);
+    for (const b of $$('[data-hand]', el('roster'))) b.onclick = () => { if (!input.justDealt()) useCard(+b.dataset.hand); };
     el('b-handbar').hidden = false;
-    el('b-handbar').innerHTML = `<button class="btn btn-paper small" id="b-extra"></button><button class="btn btn-paper small" id="b-mull"></button><span class="deck"></span>`;
-    el('b-extra').onclick = () => { if (g.phase !== 'build' || !canExtraDraw(run())) return; disarm(); extraDraw(run()); app.persist(); const plan = currentDraft(); reset(g.level, false, plan); audio.sfx('pickup'); };
-    el('b-mull').onclick = () => { if (g.phase !== 'build' || !canMulligan(run()) || playedCards().size) return; disarm(); mulligan(run()); app.persist(); reset(g.level, false, []); audio.sfx('pickup'); toast(t('hand.mulliganDone')); };
+    el('b-handbar').innerHTML = `<span class="deck"></span>`;
   }
   function disarm() { armed = null; input.arm(null); }
   // 点一张牌：布阵时兵牌是“选中 / 收回”，开战后战术牌是“打出”。
@@ -110,7 +121,7 @@ export function createBattle(app) {
       armed = { card: index, type: c.type, n: c.n, kw: c.kw, ink: c.cost }; input.arm(armed); input.setTool('deploy'); audio.sfx('pickup'); update(); return;
     }
     if (g.phase !== 'battle' || c.kind !== 'tactic' || used.has(index)) return;
-    if (g.momentum < c.cost) { toast(t('hand.need', { n: c.cost - g.momentum })); audio.sfx('invalid'); return; }
+    if (g.remaining < c.cost) { toast(t('hand.need', { n: c.cost - g.remaining })); audio.sfx('invalid'); return; }
     if (c.targeted) { casting = c; targeting = true; update(); return; }
     cast(c);
   }
@@ -119,6 +130,39 @@ export function createBattle(app) {
     used.add(c.index); casting = null; targeting = false; renderer.reticle = null;
     app.metrics.record('tactic_cast', { effect: c.effect, seconds: g.elapsed });
     audio.sfx('item'); buzz(20, true); update(); return true;
+  }
+  // 拖牌：布阵时把兵牌拖到战场上放下整支小队；开战后把战术牌拖到战场上打出（落雷、增援落在松手的位置）。
+  function deal(event, index, point) {
+    const c = handCards().find(h => h.index === index);
+    if (event === 'start') {
+      if (!c || over()) return false;
+      if (g.phase === 'build') return c.kind === 'unit' && !playedCards().has(index);
+      if (g.phase !== 'battle' || c.kind !== 'tactic' || used.has(index)) return false;
+      if (c.targeted) { casting = c; targeting = true; update(); }
+      return true;
+    }
+    if (event === 'end') {
+      if (!armed) renderer.stamp = null;
+      if (casting && !used.has(casting.index)) { casting = null; targeting = false; renderer.reticle = null; }
+      update(); return;
+    }
+    if (!c) return;
+    if (event === 'move') {
+      if (g.phase === 'build') {
+        const spots = point && g.squadSpots(c.type, c.n, Math.round(point.x), Math.round(point.y));
+        renderer.stamp = point ? { type: c.type, x: point.x, y: point.y, spots: spots || [{ x: point.x, y: point.y }], valid: !!spots && g.remaining >= c.cost } : null;
+      } else if (c.targeted) renderer.reticle = point ? { x: point.x, y: point.y, r: c.effect === 'thunder' ? TACTICS.thunder.radius : 40 } : null;
+      return;
+    }
+    if (event !== 'drop' || !point) return;
+    if (g.phase === 'build') {
+      if (g.remaining < c.cost) { toast(t('err.ink')); audio.sfx('invalid'); return; }
+      armed = { card: index, type: c.type, n: c.n, kw: c.kw, ink: c.cost }; stamp(point);
+      if (!playedCards().has(index)) { disarm(); update(); }
+    } else if (g.phase === 'battle') {
+      if (g.remaining < c.cost) { toast(t('hand.need', { n: c.cost - g.remaining })); audio.sfx('invalid'); return; }
+      cast(c, c.targeted ? point : null);
+    }
   }
   // 点战场放下选中的兵牌：整队按队形排好，放完自动选中这一队，方便接着画路线。
   function stamp(point) {
@@ -146,22 +190,18 @@ export function createBattle(app) {
     const build = g.phase === 'build', played = playedCards();
     for (const b of $$('[data-hand]', el('roster'))) {
       const c = handCards().find(h => h.index === +b.dataset.hand); if (!c) continue;
-      const isPlayed = played.has(c.index), short = c.kind === 'unit' ? !isPlayed && c.cost > g.remaining : c.cost > g.momentum;
+      const isPlayed = played.has(c.index), short = c.kind === 'unit' ? !isPlayed && c.cost > g.remaining : c.cost > g.remaining;
       b.classList.toggle('armed', armed?.card === c.index); b.classList.toggle('played', c.kind === 'unit' && isPlayed);
       b.classList.toggle('short', build ? c.kind === 'unit' && short : c.kind === 'tactic' && !used.has(c.index) && short);
       b.classList.toggle('used', !build && used.has(c.index)); b.classList.toggle('waiting', build ? c.kind === 'tactic' : c.kind === 'unit');
       b.classList.toggle('ready', !build && c.kind === 'tactic' && !used.has(c.index) && !short);
-      b.querySelector('.state').textContent = build ? (isPlayed ? t('hand.played') : c.kind === 'tactic' ? t('hand.waiting') : '') : c.kind === 'tactic' ? (used.has(c.index) ? t('hand.used') : short ? t('hand.need', { n: c.cost - g.momentum }) : '') : '';
+      b.querySelector('.state').textContent = build ? (isPlayed ? t('hand.played') : c.kind === 'tactic' ? t('hand.waiting') : '') : c.kind === 'tactic' ? (used.has(c.index) ? t('hand.used') : short ? t('hand.need', { n: c.cost - g.remaining }) : '') : '';
     }
-    const r = run();
-    const left = HAND.extraMax - r.extra, deckLine = $('.deck', el('b-handbar'));
-    if (deckLine) deckLine.textContent = t('hand.deck', { n: r.deck.length, left });
-    if (el('b-extra')) { Object.assign(el('b-extra').dataset, { tipTitle: t('hand.extraTitle'), tip: t('hand.extraTip', { n: HAND.extraCost, left }) }); el('b-extra').textContent = t('hand.extra', { n: HAND.extraCost }); el('b-extra').disabled = !build || !canExtraDraw(r) || g.remaining < HAND.extraCost; }
-    if (el('b-mull')) { Object.assign(el('b-mull').dataset, { tipTitle: t('hand.mulligan'), tip: t('hand.mulliganTip') }); el('b-mull').textContent = r.mulligan ? t('hand.mulliganUsed') : t('hand.mulligan'); el('b-mull').disabled = !build || !canMulligan(r) || played.size > 0; }
+    const deckLine = $('.deck', el('b-handbar')); if (deckLine) deckLine.textContent = inRun() ? t('hand.deck', { n: run().deck.length }) : '';
   }
 
   function buildRoster() {
-    if (inRun()) { buildHand(); return; }
+    if (cards()) { buildHand(); return; }
     el('roster').className = 'roster'; el('b-handbar').hidden = true;
     const unlocked = save().unlocked;
     el('roster').innerHTML = rosterTypes().map((type, i) => {
@@ -180,11 +220,11 @@ export function createBattle(app) {
 
   // ---------- 右栏：敌情、道具、遗物、操作说明 ----------
   function buildIntel() {
+    if (cards()) { el('b-intel').innerHTML = ''; return; }
     const enemies = mode === 'sandbox' ? [] : g.enemy, counts = UNIT_ORDER.map(type => [type, enemies.filter(u => u.type === type && !u.boss).length]).filter(([, n]) => n);
-    const boss = enemies.find(u => u.boss), bossDef = inRun() && boss ? BOSSES[run().act % BOSSES.length] : null;
+    const boss = enemies.find(u => u.boss);
     let text = '';
     if (campaign()) text = `<div class="tagline">${esc(pick(LEVELS[g.level].tag))}</div><p class="muted">${esc(pick(LEVELS[g.level].hint))}</p>`;
-    else if (inRun()) text = `<div class="tagline">${esc(t(`node.${ctx.node.kind}`))} · ${esc(pick(ctx.encounter.name))}</div>${bossDef ? `<p class="muted">${esc(t('intel.boss', { name: pick(bossDef.name) }))}</p>` : ''}${enemies.some(u => u.route || u.hold) ? `<p class="muted">${esc(t('intel.routes'))}</p>` : ''}`;
     else text = `<p class="muted">${esc(t('battle.tip.sandbox'))}</p>`;
     el('b-intel').innerHTML = mode === 'sandbox' ? `<h4>${esc(t('battle.sandbox'))}</h4>${text}` : `<h4>${esc(t('intel.title'))} · ${esc(t('intel.count', { n: enemies.length }))}</h4>
       <div class="lineup">${boss ? `<div class="mini boss" ${tipAttrs(unitName(boss.type), t(`unit.${boss.type}.role`))}><canvas width="84" height="84" data-unit="${boss.type}"></canvas><b>★</b></div>` : ''}${counts.map(([type, n]) => `<div class="mini" ${tipAttrs(unitName(type), t(`unit.${type}.role`))}><canvas width="84" height="84" data-unit="${type}"></canvas><b>×${n}</b></div>`).join('')}</div>${text}`;
@@ -192,12 +232,7 @@ export function createBattle(app) {
   }
   function buildLoadout() {
     const box = el('b-loadout');
-    if (inRun()) {
-      const r = run();
-      const relics = r.relics.map(id => `<span class="relic" ${tipAttrs(t(`relic.${id}`), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('');
-      box.innerHTML = `<h4>${esc(t('momentum.name'))}</h4><p class="muted">${esc(t('momentum.tip'))}</p>${r.relics.length ? `<h4>${esc(t('relics.title'))}</h4><div class="relic-row">${relics}</div>` : ''}`;
-      return;
-    }
+    if (cards()) { box.innerHTML = ''; return; }
     const item = g.selectedItem;
     box.innerHTML = `<h4>${esc(t('loadout.title'))}</h4><button class="slot" id="b-item" ${tipAttrs(t('battle.item.pick'), t('battle.item.once'))}>${img(`icons/item-${item}.webp`)}<span><b>${esc(itemName(item))}</b><small>${esc(t(`item.${item}.short`))}</small></span></button>
       ${campaign() ? `<button class="btn btn-paper small block" id="b-hint">${img('icons/hint.webp', 'coin-inline')} ${esc(t('battle.hint'))}</button>` : ''}`;
@@ -206,16 +241,18 @@ export function createBattle(app) {
   }
   function buildKeys() {
     const row = (label, ...keys) => `<div class="row"><span>${esc(label)}</span><span>${keys.map(k => `<kbd>${esc(k)}</kbd>`).join('')}</span></div>`;
-    el('b-keys').innerHTML = inRun()
-      ? `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.cards'), '1–9')}${row(t('keys.stamp'), t('mouse.leftClick'))}${row(t('keys.recall'), t('keys.recallKey'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.hold'), 'H')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`
-      : `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.paint'), t('mouse.left'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.clear'), t('mouse.rightClick'))}${row(t('keys.hold'), 'H')}${row(t('keys.tools'), 'Q', 'W', 'E')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`;
+    el('b-keys').innerHTML = cards() ? '' : `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.paint'), t('mouse.left'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.clear'), t('mouse.rightClick'))}${row(t('keys.hold'), 'H')}${row(t('keys.tools'), 'Q', 'W', 'E')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`;
   }
 
   // ---------- 进入、重置 ----------
   function newBattle(level, sandbox) {
     if (inRun()) {
       ctx = battleOf(run());
-      return new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, momentum: ctx.momentum });
+      return new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, refund: ctx.refund });
+    }
+    if (tutorial()) {
+      ctx = lessonCtx(lessonIndex);
+      return new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, refund: ctx.refund });
     }
     ctx = null;
     return new Battle(level, sandbox);
@@ -225,30 +262,41 @@ export function createBattle(app) {
     input.cancel(); input.selection.clear(); renderer.selectedPid = null; renderer.hoverPid = null; renderer.reticle = null; renderer.clearEffects(); targeting = false; hintOn = false;
     armed = null; casting = null; used.clear(); input.arm(null);
     g = newBattle(level, sandbox);
-    if (!inRun()) g.selectItem(itemUnlocked(save().item, save().unlocked) ? save().item : 'heal');
+    if (!cards()) g.selectItem(itemUnlocked(save().item, save().unlocked) ? save().item : 'heal');
     if (inRun()) restoreDraft(plan ?? run().draft);
+    else if (tutorial()) { for (const sq of ctx.lesson.squads) g.placeSquad({ card: sq.card, type: sq.type, n: sq.n, kw: [], ink: 0 }, sq.x, sq.y); g.history = []; }
     else { g.plan = structuredClone(plan ?? (!sandbox ? save().formations[level] || [] : [])); for (const u of g.plan) u.pid ??= g.serial++; }
     g.serial = Math.max(0, ...g.plan.map(u => (u.pid ?? -1) + 1));
     globalThis.__game = g;
     shown = false; beat = null; quotaTeam = 0; speed = save().settings.speed;
-    renderer.setTheme(inRun() ? ctx.encounter.theme : sandbox ? 'meadow' : CHAPTERS[LEVELS[level].chapter].id); renderer.skin = save().skin;
+    renderer.setTheme(inRun() ? ctx.encounter.theme : tutorial() ? ctx.theme : sandbox ? 'meadow' : CHAPTERS[LEVELS[level].chapter].id); renderer.skin = save().skin;
+    el('screen-battle').classList.toggle('card-mode', cards());
+    for (const L of LESSONS) el('screen-battle').classList.toggle(`lesson-${L.id}`, tutorial() && ctx.lesson.id === L.id);
+    renderer.guidePath = tutorial() ? ctx.lesson.guide || null : null;
+    placeControls();
     if (campaign()) { save().currentLevel = level; app.persist(); if (level === 0 && !save().guides[0]) selected = 'guard'; }
     el('panel-build').hidden = false; el('panel-fight').hidden = true; el('b-left').classList.remove('locked');
-    app.metrics.record('level_enter', { level: level + 1, sandbox, run: inRun() });
+    app.metrics.record('level_enter', { level: level + 1, sandbox, run: inRun(), tutorial: tutorial(), lesson: tutorial() ? lessonIndex + 1 : undefined });
     audio.music('menu');
     resetting = false;
     relabel(); update();
   }
-  function enter({ level = 0, sandbox = false, plan = null, run: isRun = false } = {}) {
-    mode = isRun ? 'run' : sandbox ? 'sandbox' : 'campaign';
+  function enter({ level = 0, sandbox = false, plan = null, run: isRun = false, tutorial: lesson = null } = {}) {
+    mode = isRun ? 'run' : lesson !== null ? 'tutorial' : sandbox ? 'sandbox' : 'campaign';
+    if (lesson !== null) lessonIndex = lesson;
     app.show('battle');
     reset(level, sandbox, plan);
     renderer.resize();
     running = true; prev = performance.now(); acc = 0; const id = ++loop; requestAnimationFrame(now => frame(now, id));
   }
   function leave() { running = false; loop++; input.cancel(); if (g.phase === 'battle') g.phase = 'paused'; }
+  // 卡牌模式没有右栏：开战按钮和战斗中的暂停、倍速、认输挪到左栏底部；回到战役时放回原处。
+  function placeControls() {
+    if (cards()) el('b-actions').append(el('panel-fight'), el('b-start'));
+    else { el('panel-build').append(el('b-start')); el('b-right').append(el('panel-fight')); }
+  }
   function checkpoint() {
-    if (g.phase !== 'build' || mode === 'sandbox') return;
+    if (g.phase !== 'build' || mode === 'sandbox' || tutorial()) return;
     const draft = draftOf(g);
     if (inRun()) { const now = currentDraft(); if (JSON.stringify(now) !== JSON.stringify(run().draft)) { run().draft = now; app.persist(); } return; }
     const stored = (save().formations[g.level] || []).map(({ pid, ...u }) => u);
@@ -258,11 +306,9 @@ export function createBattle(app) {
   // ---------- 引导 ----------
   function updateGuide() {
     let step = campaign() && !save().guides[g.level] ? guideStep(g, flags()) : null;
-    if (!step && inRun() && !save().tips.runcards && !g.plan.some(u => u.team === 0)) step = { id: 'runcards', title: 'guide.runcards.title', text: 'guide.runcards.text', target: 'roster' };
-    if (!step && inRun() && !save().tips.runroute && g.plan.some(u => u.team === 0) && !g.plan.some(u => u.route)) step = { id: 'runroute', title: 'guide.runroute.title', text: 'guide.runroute.text', target: 'route' };
     el('coach').hidden = !step;
     const hint = hintOn && campaign() ? SOLUTIONS[g.level].plan.map(([type, x, y]) => ({ type, x, y, team: 0 })) : [];
-    renderer.guideGhosts = step?.ghosts || hint;
+    renderer.guideGhosts = step?.ghosts || (tutorial() && !g.plan.some(u => u.team === 0) ? lessonGhosts() : hint);
     for (const [target, node] of [['roster', el('roster')], ['start', el('b-start')], ['item', el('b-loadout')], ['route', $('[data-tool="route"]')]]) node?.classList.toggle('coach-focus', step?.target === target);
     if (step) {
       el('coach-title').textContent = t(step.title); el('coach-text').textContent = t(step.text);
@@ -271,23 +317,55 @@ export function createBattle(app) {
     return step;
   }
 
+  // 教学第二课：在战场上画出第一张牌该放在哪里。
+  function lessonGhosts() {
+    const c = handCards().find(h => h.kind === 'unit');
+    return c ? (ctx.lesson.drop || []).flatMap(d => (g.squadSpots(c.type, c.n, d.x, d.y) || [d]).map(p => ({ type: c.type, x: p.x, y: p.y, team: 0 }))) : [];
+  }
+  // 教学：战场上方的大字提示，以及该点的地方一闪一闪。focus 是 'start'，或者某张手牌的编号。
+  function lessonStep(build) {
+    if (over()) return null;
+    const id = ctx.lesson.id, mine = g.plan.filter(u => u.team === 0), played = playedCards();
+    const next = handCards().find(c => c.kind === 'unit' && !played.has(c.index)), tactic = handCards().find(c => c.kind === 'tactic');
+    if (id === 'route') return build ? { title: t('tutorial.route.title'), text: t('tutorial.route.text') } : g.elapsed < 4 ? { title: t('tutorial.route.fight'), text: '' } : null;
+    if (id === 'cards') {
+      if (!build) return null;
+      if (next && next.cost <= g.remaining) return { title: t('tutorial.cards.title'), text: t(mine.length ? 'tutorial.cards.more' : 'tutorial.cards.text'), focus: next.index };
+      return { title: t('tutorial.cards.ready'), text: t('tutorial.cards.go'), focus: 'start' };
+    }
+    if (build) {
+      if (next && next.cost <= g.remaining - (tactic?.cost || 0)) return { title: t('tutorial.tactics.title'), text: t('tutorial.tactics.text'), focus: next.index };
+      return { title: t('tutorial.tactics.ready'), text: t('tutorial.tactics.go', { n: g.remaining }), focus: 'start' };
+    }
+    if (tactic && !used.has(tactic.index)) return g.remaining >= tactic.cost ? { title: t('tutorial.tactics.cast'), text: t('tutorial.tactics.castText'), focus: tactic.index } : null;
+    return g.relicStats.refunded ? { title: t('tutorial.tactics.refund'), text: '' } : null;
+  }
+  function updateLesson(build) {
+    const step = tutorial() ? lessonStep(build) : null;
+    el('b-lesson').hidden = !step;
+    for (const b of $$('[data-hand]', el('roster'))) b.classList.toggle('lesson-focus', step?.focus === +b.dataset.hand);
+    el('b-start').classList.toggle('lesson-focus', step?.focus === 'start');
+    if (!step) return;
+    el('b-lesson-title').textContent = step.title; el('b-lesson-text').textContent = step.text; el('b-lesson-text').hidden = !step.text;
+  }
+
   // ---------- 刷新界面 ----------
   function tipText(lesson) {
     if (input.tool === 'erase') return t('battle.tip.eraser');
     if (input.selection.size) return t('battle.tip.selected', { n: input.selection.size });
     if (input.tool === 'route') return t('battle.tip.route');
     if (mode === 'sandbox') return t('battle.tip.sandbox');
-    if (inRun()) { const c = armed && handCards().find(h => h.index === armed.card); return c ? t('battle.tip.armed', { name: cardName(c.id, c.up) }) : t('battle.tip.cards'); }
+    if (cards()) { const c = armed && handCards().find(h => h.index === armed.card); return c ? t('battle.tip.armed', { name: cardName(c.id, c.up) }) : t('battle.tip.cards'); }
     return g.plan.length ? `${unitName(selected)} · ${t(`unit.${selected}.role`)}` : t('battle.tip.build');
   }
   function update() {
     if (resetting) return;
     checkpoint();
     const build = g.phase === 'build', lesson = build ? updateGuide() : (el('coach').hidden = true, null);
-    el('b-ink').textContent = mode === 'sandbox' ? '∞' : g.remaining; el('b-inkmax').textContent = mode === 'sandbox' ? '' : `/${g.budget}`;
+    el('b-ink').textContent = mode === 'sandbox' ? '∞' : g.remaining; el('b-inkmax').textContent = mode === 'sandbox' || (cards() && !build) ? '' : `/${g.budget}`;
     el('b-inkpill').classList.toggle('low', mode !== 'sandbox' && build && g.remaining < 10);
-    el('b-status').innerHTML = inRun() ? `<span class="momentum ${build ? '' : 'live'}" ${tipAttrs(t('momentum.name'), t('momentum.tip'))}>${img('icons/momentum.webp')}<b>${g.momentum}</b>/${ctx.momentum.max}</span><span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span><span class="pill">${img('icons/coin.webp')}${run().coins}</span>` : '';
-    if (inRun()) { if (!build && armed) disarm(); refreshHand(); }
+    setHTML('b-status', inRun() ? `${run().relics.map(id => `<span class="relic mini" ${tipAttrs(t(`relic.${id}`), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span>` : '');
+    if (cards()) { if (!build && armed) disarm(); refreshHand(); }
 
     const list = build ? [...g.plan, ...(mode === 'sandbox' ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
     const blue = list.filter(u => !u.team).length, red = list.filter(u => u.team).length;
@@ -314,19 +392,24 @@ export function createBattle(app) {
     }
     el('b-target').hidden = !(targeting && g.phase === 'battle'); el('b-target').textContent = casting ? t(`tactic.${casting.effect}.target`) : t('battle.item.target');
     el('arena').classList.toggle('targeting', targeting);
-    el('b-tip').hidden = !build || !!lesson || !!inspection;
+    el('b-tip').hidden = !build || !!lesson || !!inspection || tutorial();
     el('b-tip').textContent = tipText(lesson);
-    el('b-autofill').hidden = !build || g.plan.length > 0 || !!lesson?.ghosts || hintOn || inRun();
+    el('b-autofill').hidden = !build || g.plan.length > 0 || !!lesson?.ghosts || hintOn || cards();
+    // 远征：布阵时在战场上方用一句话说出敌人的打算。
+    const intent = build && inRun() ? t(`intent.${ctx.encounter.template}`) : '';
+    el('b-intent').hidden = !intent || !!renderer.drag; el('b-intent').textContent = intent;
+    el('b-help').hidden = !cards();
+    updateLesson(build);
 
-    el('b-start').disabled = !g.plan.some(u => u.team === 0) || (mode === 'sandbox' && !g.plan.some(u => u.team === 1));
+    el('b-start').disabled = !g.plan.some(u => u.team === 0) || (mode === 'sandbox' && !g.plan.some(u => u.team === 1)); el('b-start').hidden = cards() && !build;
     el('b-start').innerHTML = `${esc(t('battle.start'))} <kbd>Space</kbd>`;
     el('b-undo').disabled = !g.history.length || !build; el('b-clear').disabled = !g.plan.length || !build;
-    el('b-left').classList.toggle('locked', !build && !inRun());
+    el('b-left').classList.toggle('locked', !build && !cards());
 
     if (!build) {
       const item = ITEMS[g.selectedItem], active = item ? g.effects[g.selectedItem] || 0 : 0, use = el('b-use'), ready = g.phase === 'battle' && g.canUseItem;
-      use.hidden = !g.selectedItem || inRun();
-      if (g.selectedItem && !inRun()) {
+      use.hidden = !g.selectedItem || cards();
+      if (g.selectedItem && !cards()) {
         use.disabled = !ready; use.classList.toggle('ready', ready && !targeting); use.classList.toggle('targeting', targeting);
         const status = targeting ? t('battle.item.target') : g.itemUsed ? (active > 0 ? t('battle.item.active', { n: active.toFixed(1) }) : t('battle.item.used')) : g.selectedItem === 'heal' && !g.canHeal && g.phase === 'battle' ? t('battle.item.none') : t('battle.item.use');
         use.innerHTML = `<span class="art">${img(`icons/item-${g.selectedItem}.webp`)}${active > 0 ? `<i class="ring" style="--left:${(active / item.duration * 100).toFixed(0)}%"></i>` : ''}</span><span><b>${esc(itemName(g.selectedItem))}</b><small>${esc(status)}</small></span>`;
@@ -351,12 +434,17 @@ export function createBattle(app) {
   // ---------- 布阵手势 ----------
   const input = new FormationInput({
     canvas: el('arena'), roster: el('roster'), recycle: el('recycle'), renderer, getGame: () => g, getSelection: () => ({ type: selected }), onStamp: point => stamp(point),
+    onDeal: (event, index, point) => deal(event, index, point), canRecall: card => !tutorial() || handCards().some(h => h.index === card),
     select: type => { if (selected !== type || input.tool !== 'deploy') { selected = type; if (input.tool === 'erase') setTool('deploy'); audio.sfx('pickup'); } }, say,
     onChange: (event, team, detail = {}) => {
       if (event === 'move') flags().moved = true;
       if (event === 'inspect' || (event === 'hover' && renderer.hoverPid !== null && renderer.hoverPid !== undefined)) flags().inspected = true;
       if ((event === 'move' || event === 'inspect' || (event === 'hover' && flags().inspected && !save().lessonActions[g.level]?.inspected)) && campaign()) { save().lessonActions[g.level] = { ...flags() }; app.persist(); }
-      if (event === 'route' && inRun() && !save().tips.runroute) { save().tips.runroute = true; app.persist(); }
+      if (event === 'route') {
+        if (firstRouteAt === null) { firstRouteAt = (performance.now() - sessionStart) / 1000; app.metrics.record('first_route', { seconds: firstRouteAt, tutorial: tutorial() }); }
+        // 教学第一课：画完路线就自动开战。
+        if (tutorial() && ctx.lesson.autoStart) setTimeout(() => { if (tutorial() && g.phase === 'build' && g.plan.some(u => u.route)) startBattle(); }, 450);
+      }
       if (team !== undefined && team !== null) quotaTeam = team;
       if (event === 'place') { audio.sfx('place'); buzz(8); el('b-inkpill').classList.remove('bump'); void el('b-inkpill').offsetWidth; el('b-inkpill').classList.add('bump'); }
       if (event === 'remove' || event === 'erase' || event === 'recall') audio.sfx('recycle');
@@ -377,7 +465,7 @@ export function createBattle(app) {
 
   // ---------- 按钮 ----------
   el('coach-skip').onclick = () => {
-    if (inRun()) { if (!g.plan.some(u => u.team === 0)) save().tips.runcards = true; else save().tips.runroute = true; } else save().guides[g.level] = true;
+    save().guides[g.level] = true;
     app.metrics.record('guide_skip', { level: g.level + 1 }); app.persist(); update();
   };
   el('b-undo').onclick = () => { g.undo(); input.prune(); disarm(); audio.sfx('undo'); update(); };
@@ -397,17 +485,18 @@ export function createBattle(app) {
   function removeSelection() {
     if (!input.selection.size) return;
     // 卡牌模式：选中的士兵所在的牌整张收回。
-    if (g.cardMode) { const cards = new Set(g.plan.filter(u => input.selection.has(u.pid)).map(u => u.card)); if (!cards.size) return; g.beginStroke(); g.plan = g.plan.filter(u => !cards.has(u.card)); input.setSelection([]); audio.sfx('recycle'); update(); return; }
+    if (g.cardMode) { const picked = new Set(g.plan.filter(u => input.selection.has(u.pid) && input.canRecall(u.card)).map(u => u.card)); if (!picked.size) return; g.beginStroke(); g.plan = g.plan.filter(u => !picked.has(u.card)); input.setSelection([]); audio.sfx('recycle'); update(); return; }
     g.beginStroke(); const before = g.plan.length;
     g.plan = g.plan.filter(u => !input.selection.has(u.pid));
     if (g.plan.length !== before) { input.setSelection([]); audio.sfx('recycle'); update(); } else g.history.pop();
   }
   function startBattle() {
     input.cancel(); disarm(); const step = campaign() ? guideStep(g, flags()) : null;
+    if (tutorial() && ctx.lesson.autoStart && !g.plan.some(u => u.route)) { toast(t('tutorial.route.need')); return; }
     if (!g.start()) return;
     frameSamples = new FrameSamples(); renderer.selectedPid = null; renderer.hoverPid = null; hintOn = false; input.setSelection([]);
     el('panel-build').hidden = true; el('panel-fight').hidden = false;
-    app.metrics.record('battle_start', { level: g.level + 1, sandbox: g.sandbox, run: inRun(), units: g.plan.filter(u => !u.team).length, routes: g.plan.filter(u => !u.team && u.route).length, spent: g.spent, item: g.selectedItem, speed });
+    app.metrics.record('battle_start', { level: g.level + 1, sandbox: g.sandbox, run: inRun(), tutorial: tutorial(), units: g.plan.filter(u => !u.team).length, routes: g.plan.filter(u => !u.team && u.route).length, spent: g.spent, item: g.selectedItem, speed });
     if (campaign() && !save().guides[g.level] && step?.id && ['start', 'wall', 'area'].includes(step.id)) { save().guides[g.level] = true; app.metrics.record('guide_complete', { level: g.level + 1 }); app.persist(); }
     audio.sfx('start'); audio.music('battle'); buzz(25, true); update();
   }
@@ -421,7 +510,7 @@ export function createBattle(app) {
   el('b-pause').onclick = togglePause;
   el('b-redeploy').onclick = () => {
     if (!fighting()) return;
-    if (!inRun()) { reset(g.level, g.sandbox, g.plan); return; }
+    if (!inRun()) { reset(g.level, g.sandbox, tutorial() ? null : g.plan); return; }
     const was = g.phase; g.phase = 'paused';
     const sheet = openSheet({ title: esc(t('run.surrender')), onClose: () => { if (g.phase === 'paused') g.phase = was; update(); },
       body: `<p>${esc(t('run.surrenderConfirm'))}</p><div class="actions two"><button class="btn btn-paper" id="sur-no">${esc(t('common.cancel'))}</button><button class="btn btn-red" id="sur-yes">${esc(t('common.confirm'))}</button></div>` });
@@ -437,6 +526,7 @@ export function createBattle(app) {
   }
   el('b-use').onclick = useItem;
   el('b-back').onclick = () => {
+    if (tutorial()) { if (g.phase === 'battle') g.phase = 'paused'; update(); openPause(); return; }
     if (g.phase === 'build' && !inRun()) return mode === 'sandbox' ? app.go('home') : app.go('map', { chapter: LEVELS[g.level].chapter });
     if (g.phase === 'battle') g.phase = 'paused';
     update(); openPause();
@@ -451,9 +541,18 @@ export function createBattle(app) {
   });
   el('arena').addEventListener('pointermove', e => { if (targeting && g.phase === 'battle') { const p = renderer.point(e); renderer.reticle = { x: p.x, y: p.y, r: casting ? (casting.effect === 'thunder' ? TACTICS.thunder.radius : 40) : ITEMS[g.selectedItem].radius || 60 }; } });
 
-  // ---------- 弹窗：道具、锦囊、暂停 ----------
+  // ---------- 弹窗：操作说明、道具、锦囊、暂停 ----------
+  function openHelp() {
+    const was = g.phase; if (g.phase === 'battle') g.phase = 'paused';
+    const row = (key, text) => `<div class="help-row"><b>${esc(t(`help.${key}`))}</b><p>${esc(text)}</p></div>`;
+    openSheet({
+      title: esc(t('help.title')), onClose: () => { if (was === 'battle' && g.phase === 'paused') g.phase = 'battle'; update(); },
+      body: `<div class="help">${row('deal', t('help.dealText'))}${row('route', t('help.routeText'))}${row('recall', t('help.recallText'))}${row('ink', t('ink.tip', { n: REFUND.perKill }))}${row('tactic', t('help.tacticText'))}${row('keys', t('help.keysText'))}</div>`
+    });
+  }
+  el('b-help').onclick = openHelp;
   function openItems() {
-    if (g.phase !== 'build' || inRun()) return; input.cancel();
+    if (g.phase !== 'build' || cards()) return; input.cancel();
     const recommended = campaign() ? LEVELS[g.level].recommendedItem : null;
     const sheet = openSheet({
       kicker: `${t('battle.item.pick')} · ${t('battle.item.once')}`, title: esc(t('item.pickTitle')),
@@ -488,6 +587,14 @@ export function createBattle(app) {
   }
   // 远征里开战后不能中途离开（否则可以先看一遍再重来），只能继续或认输；布阵阶段可以回主页，进度已保存。
   function openPause() {
+    if (tutorial()) {
+      const sheet = openSheet({ title: esc(t('pause.title')), onClose: () => update(),
+        body: `<div class="actions"><button class="btn btn-gold block" id="pause-resume">${esc(t('pause.resume'))}</button><button class="btn btn-paper block" id="pause-restart">${esc(t('tutorial.restart'))}</button><button class="btn btn-paper block" id="pause-skip">${esc(t('tutorial.skip'))}</button></div>` });
+      $('#pause-resume', sheet).onclick = () => { closeSheet(); if (g.phase === 'paused') g.phase = 'battle'; update(); };
+      $('#pause-restart', sheet).onclick = () => { closeSheet(true); reset(); };
+      $('#pause-skip', sheet).onclick = () => { closeSheet(true); save().tips.tutorial = true; app.persist(); app.metrics.record('tutorial_step', { lesson: lessonIndex + 1, result: 'skip' }); app.go('home'); };
+      return;
+    }
     const runFight = inRun() && fighting();
     const exitLabel = inRun() ? t('run.retreat') : mode === 'sandbox' ? t('pause.home') : t('pause.map');
     const sheet = openSheet({
@@ -514,6 +621,10 @@ export function createBattle(app) {
     const won = g.phase === 'won';
     app.metrics.record('performance', { level: g.level + 1, ...frameSamples.result() });
     audio.music(null); audio.sfx(won ? 'won' : 'lost'); buzz(won ? [18, 50, 30] : 70, true);
+    if (tutorial()) {
+      app.metrics.record('tutorial_step', { lesson: lessonIndex + 1, outcome: g.phase, seconds: g.elapsed, survivors });
+      return { review, survivors, deployed, comparison, won, timeout: !won && g.elapsed >= TIME_LIMIT };
+    }
     if (inRun()) {
       const kind = ctx.node.kind, kills = g.units.filter(u => u.team === 1 && u.hp <= 0).length;
       const feats = featsOf(g);
@@ -542,7 +653,7 @@ export function createBattle(app) {
     const mine = game.units.filter(u => u.team === 0), mvp = mine.reduce((a, b) => (b.damageDealt > (a?.damageDealt || 0) ? b : a), null);
     return {
       damage: Math.round(mine.reduce((s, u) => s + u.damageDealt, 0)), kills: game.units.filter(u => u.team === 1 && u.hp <= 0).length,
-      flanks: game.relicStats.flanks, charges: game.relicStats.primed + game.stats[0].charges, tactics: game.relicStats.tactics, momentum: game.relicStats.momentum,
+      flanks: game.relicStats.flanks, charges: game.relicStats.primed + game.stats[0].charges, tactics: game.relicStats.tactics, refunded: game.relicStats.refunded,
       routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null
     };
   }
@@ -572,8 +683,26 @@ export function createBattle(app) {
     if ($('#r-go', sheet)) $('#r-go', sheet).onclick = () => exit(() => app.go('run'));
     if ($('#r-retry', sheet)) $('#r-retry', sheet).onclick = () => exit(() => reset(g.level, false, r.draft));
   }
+  // 教学每一课的结算：一句话说清学会了什么，然后下一课；最后一课直接开始第一局远征。
+  function showLessonResult() {
+    const { won, survivors, deployed } = beat.summary, id = ctx.lesson.id, last = lessonIndex === LESSONS.length - 1;
+    const sheet = openSheet({
+      className: 'result-sheet lesson-result', dismissable: false,
+      body: `<div class="result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}<div class="kicker">${esc(titles()[0])}</div>
+        <h2 id="sheet-title">${esc(won ? t(`tutorial.${id}.won`) : t('tutorial.lost'))}</h2><p class="muted">${esc(won ? t(`tutorial.${id}.learned`) : t('tutorial.lostSub'))}</p>
+        ${won ? `<p class="muted">${esc(t('tutorial.survivors', { a: survivors, b: deployed }))}</p>` : ''}
+        <div class="actions"><button class="btn btn-gold big block" id="t-next">${esc(won ? t(last ? 'tutorial.finish' : 'tutorial.next') : t('tutorial.retry'))} ${icon('next')}</button></div></div>`
+    });
+    $('#t-next', sheet).onclick = () => {
+      closeSheet(true);
+      if (!won) { reset(); return; }
+      if (last) { save().tips.tutorial = true; app.persist(); app.metrics.record('tutorial_step', { lesson: lessonIndex + 1, result: 'done', seconds: (performance.now() - sessionStart) / 1000 }); app.beginRun(); return; }
+      lessonIndex = Math.min(lessonIndex + 1, LESSONS.length - 1); reset();
+    };
+  }
   function showResult() {
     if (!beat || shown) return; shown = true; update();
+    if (tutorial()) { showLessonResult(); return; }
     if (inRun()) { showRunResult(); return; }
     const { review, survivors, deployed, comparison, won, spotlight, medalNow, hadMedal, summary, timeout } = beat.summary;
     const level = g.level, sandbox = g.sandbox, last = level === LEVELS.length - 1, next = won && !sandbox && !last;
@@ -625,6 +754,7 @@ export function createBattle(app) {
     if (has('boom')) { renderer.kick(6); buzz(22); audio.sfx('boom'); }
     else if (has('slam')) { renderer.kick(2.5); buzz(12); audio.sfx('slam'); }
     if (has('charge') || has('flank')) { renderer.kick(2); audio.sfx('charge'); }
+    if (has('shout')) { renderer.kick(3); buzz(14); if (!has('charge')) audio.sfx('charge'); }
     if (has('freeze')) audio.sfx('freeze');
     if (has('frost')) audio.sfx('frost');
     for (const name of ['shoot', 'toss', 'cast', 'thrust', 'mend']) if (has(name)) audio.sfx(name);
@@ -664,19 +794,19 @@ export function createBattle(app) {
     }
     if (build) {
       if (key === 'z' && (mod || !e.shiftKey)) { e.preventDefault(); el('b-undo').click(); return; }
-      if (key === 'q') setTool('deploy');
-      if (key === 'w') setTool('route');
-      if (key === 'e' && !inRun()) setTool('erase');
+      if (!cards() && key === 'q') setTool('deploy');
+      if (!cards() && key === 'w') setTool('route');
+      if (!cards() && key === 'e') setTool('erase');
       if (key === 'h') toggleHold();
       if (key === 'delete' || key === 'backspace') { e.preventDefault(); removeSelection(); }
       if (key === 'a' && mod) { e.preventDefault(); input.setSelection(g.plan.filter(u => input.mine(u)).map(u => u.pid)); }
-      if (inRun() && /^[1-9]$/.test(e.key)) { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
+      if (cards() && /^[1-9]$/.test(e.key)) { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
       if (/^[1-8]$/.test(e.key)) { const type = rosterTypes()[+e.key - 1], card = type && $(`#roster [data-type="${type}"]`); if (card && !card.disabled) { selected = type; setTool('deploy'); audio.sfx('pickup'); update(); } }
       return;
     }
     if (key === 'f' && fighting()) el('b-speed').click();
-    if (inRun() && /^[1-9]$/.test(e.key) && g.phase === 'battle') { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
-    if (key === 'r' && g.phase === 'battle' && !inRun()) useItem();
+    if (cards() && /^[1-9]$/.test(e.key) && g.phase === 'battle') { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
+    if (key === 'r' && g.phase === 'battle' && !cards()) useItem();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { input.cancel(); if (g.phase === 'battle') { g.phase = 'paused'; targeting = false; renderer.reticle = null; update(); } } });
 
