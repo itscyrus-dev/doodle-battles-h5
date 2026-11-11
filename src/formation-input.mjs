@@ -3,6 +3,8 @@
 //   路线笔：从士兵身上拖出行军路线（选中的一组一起走）；在空地上画圈选人。
 //   橡皮：按住左键划过士兵擦掉。
 //   任何笔下：右键从士兵身上拖出路线，右键单击士兵取消它的命令。
+// 卡牌模式（远征、教学）没有笔：把手牌拖到战场上出兵（或点牌再点战场）；从士兵身上拖线，整支小队沿线行军；
+//   把线拖回左栏就收回这支小队；开战后把战术牌拖到战场上打出。
 import { TYPES } from './data.mjs';
 import { paintUnit } from './render.mjs';
 
@@ -20,9 +22,10 @@ function inside(poly, p) {
 
 export class FormationInput {
   // say(code, params) 负责把提示翻译成当前语言；onChange(event, team, detail) 通知界面刷新。
-  // 卡牌模式（远征）：armed 是选中的兵牌，点战场调用 onStamp 整队放下；空地上拖动变成圈选。
-  constructor({ canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp = null }) {
-    Object.assign(this, { canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp });
+  // 卡牌模式：armed 是点选的兵牌，点战场调用 onStamp 整队放下；onDeal(事件, 牌, 落点) 处理拖牌（start 返回能不能拖）；
+  // canRecall(牌) 决定这支小队能不能拖回手牌。
+  constructor({ canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp = null, onDeal = null, canRecall = () => true }) {
+    Object.assign(this, { canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp, onDeal, canRecall });
     this.gesture = null; this.lastMessage = ''; this.lastMessageAt = 0; this.tool = 'deploy'; this.armed = null;
     this.selection = new Set(); renderer.selection = this.selection;
     this.ghost = document.createElement('canvas'); this.ghost.width = 192; this.ghost.height = 192;
@@ -34,7 +37,11 @@ export class FormationInput {
     const lost = e => { if (this.gesture?.pointer === e.pointerId) this.cancel(); };
     canvas.addEventListener('lostpointercapture', lost);
     // 兵种卡会随关卡重建，所以在容器上统一监听。
-    roster.addEventListener('pointerdown', e => { const card = e.target.closest('[data-type]'); if (card && !card.disabled && e.button === 0) this.down(e, card.dataset.type, card); });
+    roster.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const hand = e.target.closest('[data-hand]'); if (hand) { this.deal(e, +hand.dataset.hand, hand); return; }
+      const card = e.target.closest('[data-type]'); if (card && !card.disabled) this.down(e, card.dataset.type, card);
+    });
     roster.addEventListener('lostpointercapture', lost);
     document.addEventListener('pointermove', e => this.move(e), { passive: false });
     document.addEventListener('pointerup', e => this.up(e));
@@ -42,6 +49,10 @@ export class FormationInput {
     window.addEventListener('blur', () => this.cancel());
   }
   get active() { return !!this.gesture; }
+  // 拖牌结束后浏览器还会补发一次 click，界面用它来区分“拖”和“点”。
+  justDealt() { return performance.now() - (this.dealtAt || 0) < 350; }
+  // 卡牌模式下，一名士兵所在的整支小队（同一张牌放下的人）。
+  squad(u) { const g = this.getGame(); return g.cardMode && u.card !== undefined ? g.plan.filter(v => v.card === u.card && this.mine(v)).map(v => v.pid) : null; }
   setTool(tool) { if (['deploy', 'route', 'erase'].includes(tool)) { this.cancel(); this.tool = tool; this.canvas.classList.toggle('tool-route', tool === 'route'); this.canvas.classList.toggle('tool-erase', tool === 'erase'); } }
   insideEl(e, element) { const r = element.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; }
   mine(u) { const g = this.getGame(); return g.sandbox || u.team === 0; }
@@ -71,6 +82,12 @@ export class FormationInput {
     if (pid !== this.renderer.hoverPid) { this.renderer.hoverPid = pid; this.onChange('hover'); }
   }
 
+  deal(e, index, element) {
+    if (this.active || e.isPrimary === false || !this.onDeal?.('start', index)) return;
+    e.preventDefault();
+    this.gesture = { pointer: e.pointerId, element, startX: e.clientX, startY: e.clientY, kind: 'deal', index, moved: false };
+    try { element.setPointerCapture(e.pointerId); } catch { /* 手牌刚被重建时可能失败 */ }
+  }
   down(e, type = null, element = this.canvas) {
     const g = this.getGame(); if (this.active || g.phase !== 'build' || e.isPrimary === false || e.button > 2 || e.button === 1) return;
     e.preventDefault();
@@ -86,15 +103,15 @@ export class FormationInput {
     else if (right) kind = unit ? 'route' : 'none';
     else if (this.tool === 'erase') kind = 'erase';
     else if (this.tool === 'route') kind = unit ? 'route' : 'lasso';
-    else if (unit) kind = 'unit';
-    else if (g.cardMode) kind = 'lasso';
+    else if (unit) kind = g.cardMode ? 'route' : 'unit';
+    else if (g.cardMode) kind = 'none';
     else {
       const suggestion = (this.renderer.guideGhosts || []).find(v => Math.abs(point.x - v.x) < 24 && point.y > v.y - 66 && point.y < v.y + 14 && !g.placementError(v.type, v.x, v.y, v.team));
       if (suggestion) { point.x = suggestion.x; point.y = suggestion.y; this.select(suggestion.type); }
       kind = 'paint';
     }
     if (kind === 'none') { if (this.selection.size) this.setSelection([]); return; }
-    const pids = kind === 'route' ? (this.selection.has(unit.pid) ? [...this.selection] : [unit.pid]) : [];
+    const pids = kind === 'route' ? (this.squad(unit) || (this.selection.has(unit.pid) ? [...this.selection] : [unit.pid])) : [];
     this.gesture = {
       pointer: e.pointerId, element, startX: e.clientX, startY: e.clientY, kind, right, shift: e.shiftKey, type: type || unit?.type || this.getSelection().type,
       unit, pids, team: unit?.team || 0, offset: unit ? { x: unit.x - point.x, y: unit.y - point.y } : { x: 0, y: 0 }, point, moved: false, last: point, points: [{ x: point.x, y: point.y }], placed: []
@@ -122,7 +139,13 @@ export class FormationInput {
   }
   move(e) {
     const s = this.gesture; if (!s || s.pointer !== e.pointerId) return;
-    e.preventDefault(); if (this.getGame().phase !== 'build') { this.cancel(); return; }
+    e.preventDefault();
+    if (s.kind === 'deal') {
+      if (!s.moved && Math.hypot(e.clientX - s.startX, e.clientY - s.startY) > CLICK) { s.moved = true; s.element.classList.add('lifting'); }
+      if (s.moved) this.onDeal('move', s.index, this.insideEl(e, this.canvas) ? this.renderer.point(e) : null);
+      return;
+    }
+    if (this.getGame().phase !== 'build') { this.cancel(); return; }
     if (Math.hypot(e.clientX - s.startX, e.clientY - s.startY) > CLICK) s.moved = true;
     const p = this.renderer.point(e);
     if (s.kind === 'paint' || s.kind === 'erase') {
@@ -138,6 +161,11 @@ export class FormationInput {
     if (s.kind === 'route' || s.kind === 'lasso') {
       const last = s.points.at(-1);
       if (Math.hypot(p.x - last.x, p.y - last.y) >= 4) s.points.push({ x: p.x, y: p.y });
+      // 卡牌模式：把线拖回左栏就是收回这支小队。
+      if (s.kind === 'route' && s.moved && this.getGame().cardMode && this.canRecall(s.unit.card)) {
+        s.recycle = this.insideEl(e, this.recycle.parentElement);
+        document.getElementById('app').classList.add('dragging-unit'); this.recycle.classList.toggle('over', s.recycle);
+      }
       return;
     }
     if (!s.moved) return;
@@ -157,9 +185,14 @@ export class FormationInput {
   up(e) {
     const s = this.gesture; if (!s || s.pointer !== e.pointerId) return;
     const g = this.getGame();
+    if (s.kind === 'deal') {
+      if (s.moved) { this.dealtAt = performance.now(); this.onDeal('drop', s.index, this.insideEl(e, this.canvas) ? this.renderer.point(e) : null); }
+      this.finish(); return;
+    }
     if (s.kind === 'paint' && s.placed.length) this.setSelection(s.placed);
     else if (s.kind === 'route') {
-      if (s.moved && s.points.length > 1) {
+      if (s.recycle) { g.recallCard(s.unit.card); this.prune(); this.onChange('recall', 0, { type: s.type, card: s.unit.card }); }
+      else if (s.moved && s.points.length > 1) {
         const n = g.setRoute(s.pids, s.points, s.unit.pid);
         if (n) { this.setSelection(s.pids); this.tell('route.given', { n }); this.onChange('route', 0, { n }); } else this.tell('route.short');
       } else if (s.right) { if (g.clearOrders(s.pids)) { this.tell('route.cleared'); this.onChange('orders'); } }
@@ -189,6 +222,7 @@ export class FormationInput {
   finish() {
     const s = this.gesture; this.gesture = null;
     try { if (s?.element.hasPointerCapture(s.pointer)) s.element.releasePointerCapture(s.pointer); } catch { /* 元素已不在页面上 */ }
+    if (s?.kind === 'deal') { s.element.classList.remove('lifting'); this.onDeal?.('end', s.index); return; }
     this.ghost.hidden = true; this.renderer.drag = null; this.renderer.sketch = null;
     document.getElementById('app').classList.remove('dragging-unit'); this.recycle.classList.remove('over');
     this.onChange('idle');

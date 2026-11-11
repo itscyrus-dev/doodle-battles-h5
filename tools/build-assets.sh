@@ -46,7 +46,7 @@ for i in heal rally smoke thunder frost; do sprite "$IN/item_$i.png" "assets/ico
 for i in coin star ink chest trophy daily codex hint sandbox palette map; do sprite "$IN/ico_$i.png" "assets/icons/$i.webp" 160; done
 sprite "$IN/art_victory.png" assets/ui/victory.webp 512
 sprite "$IN/art_defeat.png" assets/ui/defeat.webp 384
-magick "$IN/logo_wordmark.png" -fuzz 2% -trim +repage -resize 900x "$TMP/logo.png"; cwebp -quiet -q 90 -alpha_q 95 -m 6 "$TMP/logo.png" -o assets/ui/logo.webp
+magick "$IN/logo_zh.png" -fuzz 2% -trim +repage -resize 900x "$TMP/logo.png"; cwebp -quiet -q 90 -alpha_q 95 -m 6 "$TMP/logo.png" -o assets/ui/logo.webp
 
 # 电脑版：横版战场背景、主页、远征地图（各从两张候选里挑一张），地图节点和遗物图标。
 pick() { magick "$1" -resize "$3" "$TMP/o.png"; cwebp -quiet -q "$4" -m 6 "$TMP/o.png" -o "$2"; }

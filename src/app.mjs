@@ -1,7 +1,7 @@
 // 主程序（电脑版）：启动、舞台缩放、主页、战役地图、远征入口和各个弹窗（图鉴、军旗、悬赏、成就、设置、玩法）。
 import { LEVELS, CHAPTERS, TYPES, ITEMS, UNIT_ORDER, ITEM_ORDER, LEVELS_PER_CHAPTER, unitUnlocked, itemUnlocked } from './data.mjs';
 import { t, pick } from './i18n.mjs';
-import { preload, CORE_IMAGES, assetUrl, PALETTES, drawUnitImage, loadImage } from './assets.mjs';
+import { preload, CORE_IMAGES, assetUrl, PALETTES, loadImage } from './assets.mjs';
 import { paintUnit } from './render.mjs';
 import * as audio from './audio.mjs';
 import { loadSave, writeSave, normalizeSave, campaignSummary, chapterSummary, SAVE_KEY, LEGACY_KEY } from './save.mjs';
@@ -13,6 +13,7 @@ import { nodeOf, deckTypes } from './run.mjs';
 import { $, $$, esc, icon, img, starsMarkup, toast, openSheet, closeSheet, initOverlay, initTips, canVibrate, setHaptics, buzz, tipAttrs } from './ui.mjs';
 import { createBattle } from './battle.mjs';
 import { createRunUI } from './run-ui.mjs';
+import { createDemo } from './home-demo.mjs';
 
 const storage = (() => { try { const s = globalThis.localStorage; s.getItem('x'); return s; } catch { return { getItem: () => null, setItem: () => { throw new Error('no storage'); }, removeItem: () => {} }; } })();
 const loaded = loadSave(storage);
@@ -21,7 +22,7 @@ const app = {
   persist() { const ok = writeSave(storage, app.save); if (!ok && app.storageOk) toast(t('toast.storage'), 3200); app.storageOk = ok; },
   show, go, announce
 };
-let battle = null, runUI = null, squadTimer = 0;
+let battle = null, runUI = null, demo = null;
 const unitName = type => t(`unit.${type}.name`), itemName = id => t(`item.${id}.name`);
 const levelLabel = i => `${t('common.level', { n: i + 1 })} · ${pick(LEVELS[i].title)}`;
 
@@ -42,7 +43,7 @@ function show(name) {
   app.screen = name;
   for (const id of ['boot', 'home', 'map', 'run', 'battle']) $(`#screen-${id}`).hidden = id !== name;
   if (name !== 'battle') { battle?.leave(); audio.music('menu'); }
-  cancelAnimationFrame(squadTimer); if (name === 'home') squadTimer = requestAnimationFrame(drawSquad);
+  if (name !== 'home') { demo?.stop(); demo = null; }
 }
 function go(name, params = {}) {
   closeSheet(true);
@@ -51,61 +52,59 @@ function go(name, params = {}) {
   if (name === 'battle') battle.enter(params);
   if (name === 'run') runUI.show();
 }
+// 新玩家：没打过教学、战役和远征。第一次打开直接进教学第一课，不先看主页。
+const isNewPlayer = () => !app.save.tips.tutorial && !Object.keys(app.save.stars).length && !app.save.runStats.runs && !app.save.run;
 const currencyPills = () => { const s = campaignSummary(app.save); return `<span class="pill" ${tipAttrs(t('common.stars'))}>${img('icons/star.webp')}${s.stars}</span><span class="pill" ${tipAttrs(t('common.coins'))}>${img('icons/coin.webp')}${app.save.coins}</span>`; };
 function toggleFullscreen() {
   try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); } catch { /* 有的浏览器不允许 */ }
 }
 
-// ---------- 主页 ----------
+// ---------- 主页：一个“开始”，其余收进“更多”；右边循环播放一段演示 ----------
 function renderHome() {
-  const s = app.save, summary = campaignSummary(s), allClear = summary.completed === LEVELS.length, daily = ensureDaily(s);
-  const next = allClear ? s.currentLevel : s.unlocked, r = s.run && s.run.screen !== 'over' ? s.run : null;
-  const runSub = r ? t('home.expeditionResume', { act: r.act + 1, where: r.at === null ? t('run.where.start') : nodeOf(r, r.at).kind === 'boss' ? t('run.where.boss') : t('run.floor', { n: nodeOf(r, r.at).row + 1 }) }) : t('home.expeditionSub');
+  const s = app.save, daily = ensureDaily(s), r = s.run && s.run.screen !== 'over' ? s.run : null;
+  const runSub = r ? t('home.expeditionResume', { act: r.act + 1, where: r.at === null ? t('run.where.start') : nodeOf(r, r.at).kind === 'boss' ? t('run.where.boss') : t('run.floor', { n: nodeOf(r, r.at).row + 1 }) }) : t('home.startSub');
   $('#screen-home').innerHTML = `
     <div class="topbar">${currencyPills()}<button class="ibtn" id="home-full" ${tipAttrs(t('settings.fullscreen'), t('settings.fullscreenNote'))}>${icon('expand')}</button><button class="ibtn" id="home-settings" aria-label="${esc(t('home.settings'))}">${icon('gear')}</button></div>
     <div class="home-left">
       ${img('ui/logo.webp', 'home-logo', t('app.name'))}
-      <div class="home-sub">${esc(t('app.name'))} · ${esc(t('app.tagline'))}</div>
-      <button class="btn btn-gold menu-main" id="home-run"><span>${esc(r ? t('run.continue') : t('home.expedition'))}${r ? '' : `<span class="new">${esc(t('home.new'))}</span>`}</span><small>${esc(runSub)}</small></button>
-      <button class="btn btn-paper menu-main" id="home-campaign"><span>${esc(t('home.campaign'))}</span><small>${esc(allClear ? t('home.allClear') : t('home.levelTag', { n: next + 1, title: pick(LEVELS[next].title) }))}</small></button>
-      <div class="menu-row">
-        <button class="tile" id="home-daily">${img('icons/daily.webp')}${esc(t('home.daily'))}${daily && !daily.done ? '<i class="dot"></i>' : ''}</button>
-        <button class="tile" id="home-codex">${img('icons/codex.webp')}${esc(t('home.collection'))}</button>
-        <button class="tile" id="home-shop">${img('icons/palette.webp')}${esc(t('home.shop'))}</button>
-        <button class="tile" id="home-ach">${img('icons/trophy.webp')}${esc(t('home.achievements'))}</button>
-        <button class="tile" id="home-sandbox">${img('icons/sandbox.webp')}${esc(t('home.sandbox'))}</button>
-        <button class="tile" id="home-howto">${img('icons/hint.webp')}${esc(t('home.howto'))}</button>
-      </div>
+      <div class="home-sub">${esc(t('app.tagline'))}</div>
+      <button class="btn btn-gold menu-main home-start" id="home-run"><span>${esc(r ? t('run.continue') : t('home.start'))}</span><small>${esc(runSub)}</small></button>
+      <button class="btn btn-paper menu-more" id="home-more"><span>${esc(t('home.more'))}</span><small>${esc(t('home.moreSub'))}</small>${daily && !daily.done ? '<i class="dot"></i>' : ''}</button>
       <div class="home-foot">${s.runStats.runs ? esc(t('run.records', { runs: s.runStats.runs, wins: s.runStats.wins })) + ' · ' : ''}v${esc(PLAYTEST_VERSION)}</div>
     </div>
-    <div class="home-stage"><canvas id="home-squad" aria-hidden="true"></canvas></div>`;
-  $('#home-run').onclick = () => (r ? go('run') : runUI.openStart());
-  $('#home-campaign').onclick = () => go('map', { chapter: LEVELS[next].chapter, level: next });
-  $('#home-daily').onclick = openDaily;
-  $('#home-codex').onclick = () => openCodex();
-  $('#home-shop').onclick = openShop;
-  $('#home-ach').onclick = openAchievements;
-  $('#home-sandbox').onclick = () => go('battle', { level: 0, sandbox: true });
-  $('#home-howto').onclick = openHowto;
+    <div class="home-stage"><canvas id="home-demo" aria-hidden="true"></canvas><div class="home-caption">${esc(t('home.demo'))}</div></div>`;
+  $('#home-run').onclick = () => (r ? go('run') : isNewPlayer() ? go('battle', { tutorial: 0 }) : runUI.openStart());
+  $('#home-more').onclick = openMore;
   $('#home-settings').onclick = openSettings;
   $('#home-full').onclick = toggleFullscreen;
+  demo?.stop();
+  demo = createDemo($('#home-demo'), { skin: s.skin, reduced: s.settings.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches });
   app.persist();
 }
-// 主页上的小队：已解锁的兵种站成两排，朝右轻轻起伏。
-function drawSquad(now) {
-  const canvas = $('#home-squad'); if (!canvas || app.screen !== 'home') return;
-  const r = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
-  if (r.width && (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr))) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
-  const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height; c.clearRect(0, 0, w, h);
-  const met = deckTypes(app.save.run), types = UNIT_ORDER.filter(type => unitUnlocked(type, app.save.unlocked) || met.includes(type)), still = app.save.settings.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const order = [...types.keys()].sort((a, b) => (a % 2) - (b % 2));
-  for (const i of order) {
-    const type = types[i], n = types.length, x = w * (n === 1 ? .5 : .1 + .8 * i / (n - 1)), back = i % 2 === 0, size = h * (type === 'giant' ? .62 : .44) * (back ? .9 : 1);
-    const y = h * (back ? .76 : .96), bob = still ? 0 : Math.sin(now / 520 + i * 1.7) * h * .012;
-    c.fillStyle = 'rgba(25,40,55,.22)'; c.beginPath(); c.ellipse(x, y - h * .01, size * .28, size * .08, 0, 0, Math.PI * 2); c.fill();
-    c.save(); c.translate(x, y); c.scale(1, 1 + bob / size); drawUnitImage(c, type, app.save.skin, 0, 0, size); c.restore();
-  }
-  squadTimer = requestAnimationFrame(drawSquad);
+// “更多”：战役、教学、悬赏、图鉴、配色、成就、沙盒和玩法说明。
+function openMore() {
+  const s = app.save, summary = campaignSummary(s), allClear = summary.completed === LEVELS.length, daily = ensureDaily(s), next = allClear ? s.currentLevel : s.unlocked;
+  const tile = (id, art, label, sub = '', dot = false) => `<button class="more-tile" id="${id}">${img(art)}<span><b>${esc(label)}${dot ? '<i class="dot"></i>' : ''}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
+  const sheet = openSheet({
+    className: 'wide', title: esc(t('home.more')),
+    body: `<div class="more-grid">
+      ${tile('more-campaign', 'icons/map.webp', t('home.campaign'), allClear ? t('home.allClear') : t('home.levelTag', { n: next + 1, title: pick(LEVELS[next].title) }))}
+      ${tile('more-tutorial', 'icons/hint.webp', t('home.tutorial'), t('home.tutorialSub'))}
+      ${tile('more-daily', 'icons/daily.webp', t('home.daily'), '', !!daily && !daily.done)}
+      ${tile('more-codex', 'icons/codex.webp', t('home.collection'))}
+      ${tile('more-shop', 'icons/palette.webp', t('home.shop'))}
+      ${tile('more-ach', 'icons/trophy.webp', t('home.achievements'))}
+      ${tile('more-sandbox', 'icons/sandbox.webp', t('home.sandbox'))}
+      ${tile('more-howto', 'icons/star.webp', t('home.howto'))}</div>`
+  });
+  $('#more-campaign', sheet).onclick = () => go('map', { chapter: LEVELS[next].chapter, level: next });
+  $('#more-tutorial', sheet).onclick = () => go('battle', { tutorial: 0 });
+  $('#more-daily', sheet).onclick = openDaily;
+  $('#more-codex', sheet).onclick = () => openCodex();
+  $('#more-shop', sheet).onclick = openShop;
+  $('#more-ach', sheet).onclick = openAchievements;
+  $('#more-sandbox', sheet).onclick = () => go('battle', { level: 0, sandbox: true });
+  $('#more-howto', sheet).onclick = openHowto;
 }
 
 // ---------- 战役地图：左边章节、中间地图、右边关卡详情 ----------
@@ -306,12 +305,11 @@ async function boot() {
   $('#boot-status').textContent = t('boot.loading'); $('#boot-retry').textContent = t('boot.retry');
   app.metrics.record('session_start');
   await preload(CORE_IMAGES, p => { $('#boot-fill').style.width = `${Math.round(4 + p * 96)}%`; });
-  battle = createBattle(app); runUI = createRunUI(app); applySettings(); fitStage();
+  battle = createBattle(app); runUI = createRunUI(app); app.beginRun = () => runUI.begin(); applySettings(); fitStage();
   globalThis.__battle = battle;
   announce(claimAchievements(app.save));
-  go('home');
+  if (isNewPlayer()) go('battle', { tutorial: 0 }); else go('home');
   if (loaded.migrated) { app.persist(); toast(t('toast.welcomeBack'), 2600); }
-  if (!app.save.tips.howto) openHowto();
   // 浏览器要求先有一次点击才能发声。
   const unlock = () => audio.unlock();
   document.addEventListener('pointerdown', unlock, { capture: true }); document.addEventListener('keydown', unlock, { capture: true });

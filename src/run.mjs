@@ -2,7 +2,7 @@
 // 这里只有规则和状态，不碰界面和存储。地图、遭遇战和抽牌都由种子决定，存档只需要记玩家的状态和选择。
 import { TYPES, UNIT_ORDER } from './data.mjs';
 import { RELICS, RELIC_ORDER, runMods, relicPerks } from './relics.mjs';
-import { CARDS, CARD_ORDER, RARITY_WEIGHT, STARTER_DECKS, HAND, MOMENTUM, cardStats, CARD_TEAM_LIMIT } from './cards.mjs';
+import { CARDS, CARD_ORDER, RARITY_WEIGHT, STARTER_DECKS, HAND, REFUND, cardStats, CARD_TEAM_LIMIT } from './cards.mjs';
 import { rng, hash, pickOne, makeEncounter, ACTS, ROWS } from './encounters.mjs';
 import { validRoute } from './routes.mjs';
 
@@ -78,7 +78,7 @@ export function newRun({ seed = Math.floor(Math.random() * 2147483646) + 1, warb
     v: 1, gen: GEN_VERSION, seed, warband: id, act: 0, at: null, path: [],
     hearts: START.hearts, maxHearts: START.hearts, ink: START.ink, coins: 0,
     deck: wb.deck.map(card => ({ id: card, up: false })), relics: [...wb.relics],
-    hand: null, extra: 0, mulligan: false,
+    hand: null,
     screen: 'map', pending: null, draft: [], attempts: 0, result: null,
     stats: { wins: 0, losses: 0, kills: 0, elites: 0, bosses: 0, coins: 0, nodes: 0, cards: 0, tactics: 0 }
   };
@@ -105,7 +105,6 @@ export function normalizeRun(raw) {
   if (!Array.isArray(r.deck) || r.deck.length < 1 || r.deck.length > 60 || !r.deck.every(validEntry) || !uniqueIn(r.relics, RELIC_ORDER)) return null;
   const size = r.deck.length;
   if (r.hand !== null && !(Array.isArray(r.hand) && r.hand.length <= 16 && r.hand.every(i => int(i, 0, size - 1)) && new Set(r.hand).size === r.hand.length)) return null;
-  if (!int(r.extra, 0, HAND.extraMax) || typeof r.mulligan !== 'boolean') return null;
   if (!['map', 'battle', 'reward', 'shop', 'camp', 'event', 'over'].includes(r.screen)) return null;
   const map = makeMap(r.seed, r.act);
   if (r.at !== null && !map.nodes.has(r.at)) return null;
@@ -124,7 +123,7 @@ export function normalizeRun(raw) {
   return {
     v: 1, gen: GEN_VERSION, seed: r.seed, warband: r.warband, act: r.act, at: r.at, path: r.path.slice(),
     hearts: r.hearts, maxHearts: r.maxHearts, ink: r.ink, coins: r.coins,
-    deck: r.deck.map(e => ({ id: e.id, up: e.up })), relics: r.relics.slice(), hand: r.hand ? r.hand.slice() : null, extra: r.extra, mulligan: r.mulligan,
+    deck: r.deck.map(e => ({ id: e.id, up: e.up })), relics: r.relics.slice(), hand: r.hand ? r.hand.slice() : null,
     screen: r.screen, pending: p ? structuredClone(p) : null, draft, attempts: r.attempts, result: r.screen === 'over' ? r.result : null, stats
   };
 }
@@ -141,28 +140,11 @@ export function drawHand(run, salt = 0) {
   return sortHand(run, shuffle(rand, run.deck.map((_, i) => i)).slice(0, Math.min(handSize(run), run.deck.length)));
 }
 // 花墨水多抽一张（每场最多 3 次）。
-export function canExtraDraw(run) { return run.screen === 'battle' && run.extra < HAND.extraMax && run.hand.length < run.deck.length; }
-export function extraDraw(run) {
-  if (!canExtraDraw(run)) return -1;
-  const rand = rng(hash(run.seed, 'extra', run.at, run.extra)), rest = run.deck.map((_, i) => i).filter(i => !run.hand.includes(i));
-  const card = pickOne(rand, rest);
-  run.extra++; run.hand = sortHand(run, [...run.hand, card]);
-  return card;
-}
-// 重抽：每场一次，换一手全新的牌（还没多抽、也没出牌时才能用，界面负责检查出牌）。
-export function canMulligan(run) { return run.screen === 'battle' && !run.mulligan && run.extra === 0; }
-export function mulligan(run) {
-  if (!canMulligan(run)) return false;
-  run.hand = drawHand(run, 1); run.mulligan = true; run.draft = [];
-  return true;
-}
-
-// ---------- 进入节点 ----------
 export function enter(run, id) {
   if (!available(run).includes(id)) return false;
   const node = nodeOf(run, id);
   run.at = id; run.path.push(id); run.stats.nodes++; run.attempts = 0;
-  if (isFight(node.kind)) { run.screen = 'battle'; run.pending = { node: id }; run.hand = drawHand(run); run.extra = 0; run.mulligan = false; run.draft = []; }
+  if (isFight(node.kind)) { run.screen = 'battle'; run.pending = { node: id }; run.hand = drawHand(run); run.draft = []; }
   else if (node.kind === 'shop') { run.screen = 'shop'; run.pending = { stock: makeStock(run, id) }; }
   else if (node.kind === 'camp') { run.screen = 'camp'; run.pending = { done: false }; }
   else if (node.kind === 'event') { run.screen = 'event'; run.pending = makeEvent(run, id); }
@@ -175,9 +157,9 @@ export function battleOf(run) {
   if (run.screen !== 'battle') return null;
   const node = nodeOf(run, run.pending.node), perks = perksOf(run);
   const encounter = makeEncounter({ seed: run.seed, act: run.act, row: node.row, kind: node.kind, node: node.id });
-  const def = { index: -1, budget: run.ink - run.extra * HAND.extraCost, enemies: encounter.enemies, rocks: encounter.rocks, par: encounter.par, title: encounter.name };
+  const def = { index: -1, budget: run.ink, enemies: encounter.enemies, rocks: encounter.rocks, par: encounter.par, title: encounter.name };
   const hand = run.hand.map(index => ({ index, ...cardStats(run.deck[index], perks) }));
-  return { node, encounter, def, mods: runMods(run, encounter.enemyMods, CARD_TEAM_LIMIT), hand, momentum: { ...MOMENTUM, start: MOMENTUM.start + perks.momentum } };
+  return { node, encounter, def, mods: runMods(run, encounter.enemyMods, CARD_TEAM_LIMIT), hand, refund: { perKill: REFUND.perKill, start: perks.inkStart } };
 }
 
 // ---------- 战斗结果 ----------
@@ -197,7 +179,7 @@ export function finishBattle(run, result) {
   const bounty = perksOf(run).bounty * (result.survivors || 0);
   const coins = COINS[node.kind] + COINS.star * Math.max(0, (result.stars || 1) - 1) + bounty;
   run.coins += coins; run.stats.coins += coins; run.stats.wins++;
-  run.hand = null; run.extra = 0; run.mulligan = false; run.draft = [];
+  run.hand = null; run.draft = [];
   const rand = rng(hash(run.seed, 'spoils', node.id));
   let ink = 0;
   if (node.kind === 'battle') { ink = WIN_INK; run.ink += ink; run.pending = { kind: 'spoils', coins, bounty, ink, options: cardChoices(run, 3, rand) }; }

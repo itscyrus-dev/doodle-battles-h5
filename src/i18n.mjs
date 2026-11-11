@@ -9,7 +9,7 @@ const zh = {
 
   'boot.loading': '正在集结小队…', 'boot.error': '加载遇到问题，请重新加载。', 'boot.retry': '重新加载', 'boot.tap': '点击开始',
 
-  'home.continue': '继续闯关', 'home.start': '开始闯关', 'home.levelTag': '第 {n} 关 · {title}', 'home.allClear': '全部通关 · 挑战三星',
+  'home.continue': '继续闯关', 'home.start': '开始远征', 'home.levelTag': '第 {n} 关 · {title}', 'home.allClear': '全部通关 · 挑战三星',
   'home.map': '关卡', 'home.daily': '悬赏', 'home.collection': '图鉴', 'home.shop': '配色', 'home.sandbox': '沙盒', 'home.achievements': '成就', 'home.settings': '设置',
 
   'map.title': '征途', 'map.chapter': '第 {n} 章', 'map.progress': '已通关 {done}/{total}', 'map.lockedChapter': '通关第 {n} 关后开启', 'map.prev': '上一章', 'map.next': '下一章', 'map.boss': '首领',

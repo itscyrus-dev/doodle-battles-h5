@@ -22,7 +22,7 @@ export const RELICS = {
   fervor: { tier: 'rare', flags: { fervor: true } },
   pact: { tier: 'common', flags: { pact: true } },
   horde: { tier: 'common', horde: true },
-  warcry: { tier: 'common', momentum: 2 },
+  warcry: { tier: 'common', inkStart: 15 },
   tactician: { tier: 'rare', tactician: true },
   scholar: { tier: 'rare', hand: 1 }
 };
@@ -51,5 +51,5 @@ export const bountyOf = relics => relics.reduce((s, id) => s + (RELICS[id]?.boun
 // 只影响卡牌规则（而不是战斗属性）的遗物效果：人海、军师、省墨、战吼、博览、赏金。
 export function relicPerks(relics = []) {
   const has = id => relics.includes(id);
-  return { horde: has('horde'), tactician: has('tactician'), thrift: has('thrift'), momentum: relics.reduce((s, id) => s + (RELICS[id]?.momentum || 0), 0), hand: relics.reduce((s, id) => s + (RELICS[id]?.hand || 0), 0), bounty: bountyOf(relics) };
+  return { horde: has('horde'), tactician: has('tactician'), thrift: has('thrift'), inkStart: relics.reduce((s, id) => s + (RELICS[id]?.inkStart || 0), 0), hand: relics.reduce((s, id) => s + (RELICS[id]?.hand || 0), 0), bounty: bountyOf(relics) };
 }
