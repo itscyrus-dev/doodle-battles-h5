@@ -15,12 +15,12 @@ export const recipes = {
   bombsLean: ['guard', 'bomber', 'bomber', 'knight', 'knight'],
   balancedLean: ['guard', 'guard', 'archer', 'archer', 'knight', 'knight']
 };
-// 具体站位来自 tools/level-report.mjs 的搜索结果。
+// 具体站位来自 tools/level-report.mjs 的搜索结果（横版坐标）。
 export const plans = {
   // 第8关：两名护卫堵住窄口，爆破手越过巨石投弹。
-  narrowPass: [{ type: 'archer', x: 177, y: 441 }, { type: 'guard', x: 297, y: 360 }, { type: 'archer', x: 451, y: 507 }, { type: 'guard', x: 259, y: 347 }, { type: 'bomber', x: 212, y: 476 }],
+  narrowPass: [{ type: 'archer', x: 229, y: 217 }, { type: 'guard', x: 310, y: 337 }, { type: 'archer', x: 163, y: 491 }, { type: 'guard', x: 323, y: 299 }, { type: 'bomber', x: 194, y: 252 }],
   // 第10关：四种兵种协同，满足“协同终局”挑战。
-  finale: [{ type: 'archer', x: 257, y: 449 }, { type: 'bomber', x: 407, y: 386 }, { type: 'archer', x: 411, y: 539 }, { type: 'knight', x: 236, y: 397 }, { type: 'guard', x: 133, y: 418 }, { type: 'archer', x: 230, y: 439 }, { type: 'guard', x: 382, y: 414 }, { type: 'archer', x: 73, y: 514 }, { type: 'knight', x: 288, y: 358 }]
+  finale: [{ type: 'archer', x: 221, y: 297 }, { type: 'bomber', x: 284, y: 447 }, { type: 'archer', x: 131, y: 451 }, { type: 'knight', x: 273, y: 276 }, { type: 'guard', x: 252, y: 173 }, { type: 'archer', x: 231, y: 270 }, { type: 'guard', x: 256, y: 422 }, { type: 'archer', x: 156, y: 113 }, { type: 'knight', x: 312, y: 328 }]
 };
 const BACK = new Set(['archer', 'bomber', 'mage', 'healer']);
 export function setup(level, recipe, layout) {
@@ -31,7 +31,8 @@ export function setup(level, recipe, layout) {
     if (layout === 'left') x = 45 + (i % 4) * 55;
     if (layout === 'right') x = 475 - (i % 4) * 55;
     if (layout === 'tight') { x = 185 + (i % 3) * 55; py = y + Math.floor(i / 3) * 50; }
-    g.place(type, x, py);
+    // 上面按“横向位置 x、纵深 py”排兵；战场是左右对战，所以纵深换算成横坐标、横向位置换算成纵坐标。
+    g.place(type, 670 - py, x + 40);
   });
   return g;
 }
