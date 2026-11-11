@@ -122,6 +122,8 @@ const zh = {
   'relic.tactician': '军师', 'relic.tactician.desc': '战术牌的战墨消耗 −1（最少 1）。',
   'relic.scholar': '兵书', 'relic.scholar.desc': '每场多抽 1 张手牌。',
   'hand.deck': '牌库 {n} 张 · 还能加抽 {left} 次', 'hand.extra': '加抽 −{n}墨', 'hand.mulligan': '重抽手牌', 'hand.extraTitle': '加抽一张', 'hand.extraTip': '花 {n} 墨水多抽一张牌。这场还能加抽 {left} 次。', 'hand.mulliganTip': '把整手牌放回去重抽一次。每场一次，要在出牌和加抽之前用。', 'hand.mulliganUsed': '已重抽', 'hand.mulliganDone': '换了一手新牌',
+  'battle.tip.cards': '点一张兵牌，再点左侧蓝色区域放下 · 右键从士兵身上拖出行军路线 · 拖回左栏收回', 'battle.tip.armed': '点战场放下「{name}」 · 右键或 Esc 取消',
+  'tool.deploy.tipCards': '布阵笔：点一张兵牌，再在战场上点一下放下整支小队；拖动士兵调整位置',
   'hand.waiting': '开战后可用', 'hand.need': '还差 {n} 战墨', 'hand.noEffect': '现在没有可作用的目标', 'hand.played': '已出', 'hand.used': '已用',
   'momentum.name': '战墨', 'momentum.tip': '打出战术牌要花战墨。开局 1 点，每击倒一名敌人 +1，每 8 秒 +1，最多存 9 点。',
   'keys.cards': '选牌', 'keys.stamp': '放下小队', 'keys.recall': '收回小队', 'keys.recallKey': '选中 + Delete', 'mouse.leftClick': '左键点',

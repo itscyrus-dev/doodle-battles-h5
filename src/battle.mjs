@@ -72,7 +72,7 @@ export function createBattle(app) {
 
   // ---------- 左栏：三支笔和兵种卡 ----------
   function buildTools() {
-    el('b-tools').innerHTML = TOOLS.filter(([id]) => !(inRun() && id === 'erase')).map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(`tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
+    el('b-tools').innerHTML = TOOLS.filter(([id]) => !(inRun() && id === 'erase')).map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(inRun() && id === 'deploy' ? 'tool.deploy.tipCards' : `tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
     for (const b of $$('[data-tool]', el('b-tools'))) b.onclick = () => setTool(b.dataset.tool);
   }
   function setTool(tool) { input.setTool(tool); for (const b of $$('[data-tool]', el('b-tools'))) b.classList.toggle('on', b.dataset.tool === tool); update(); }
@@ -277,6 +277,7 @@ export function createBattle(app) {
     if (input.selection.size) return t('battle.tip.selected', { n: input.selection.size });
     if (input.tool === 'route') return t('battle.tip.route');
     if (mode === 'sandbox') return t('battle.tip.sandbox');
+    if (inRun()) { const c = armed && handCards().find(h => h.index === armed.card); return c ? t('battle.tip.armed', { name: cardName(c.id, c.up) }) : t('battle.tip.cards'); }
     return g.plan.length ? `${unitName(selected)} · ${t(`unit.${selected}.role`)}` : t('battle.tip.build');
   }
   function update() {
