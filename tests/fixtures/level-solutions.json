@@ -1,0 +1,474 @@
+[
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 13,
+    "survive": 4,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 21.2,
+    "survive": 2,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 26.7,
+    "survive": 1,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 18.9,
+    "survive": 3,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 250,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "shield",
+    "layout": "wide",
+    "phase": "won",
+    "time": 15.4,
+    "survive": 5,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 250,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balancedLean",
+    "layout": "wide",
+    "phase": "won",
+    "time": 23.2,
+    "survive": 3,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 29.8,
+    "survive": 1,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 155,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 250,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "wide",
+    "phase": "won",
+    "time": 15.4,
+    "survive": 3,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 60,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 250,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 345,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 60,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 250,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "balanced",
+    "layout": "tight",
+    "phase": "won",
+    "time": 20.1,
+    "survive": 2,
+    "plan": [
+      {
+        "type": "guard",
+        "x": 185,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 240,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 295,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "knight",
+        "x": 185,
+        "y": 415,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 185,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 240,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 295,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  },
+  {
+    "name": "blast",
+    "layout": "left",
+    "phase": "won",
+    "time": 25.8,
+    "survive": 1,
+    "plan": [
+      {
+        "type": "giant",
+        "x": 45,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "guard",
+        "x": 100,
+        "y": 365,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 45,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "bomber",
+        "x": 100,
+        "y": 490,
+        "team": 0
+      },
+      {
+        "type": "archer",
+        "x": 155,
+        "y": 490,
+        "team": 0
+      }
+    ],
+    "item": "heal"
+  }
+]

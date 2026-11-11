@@ -1,0 +1,1 @@
+try{await import('./app.mjs');document.body.classList.remove('loading');document.getElementById('loading-splash').hidden=true;}catch(error){console.error('游戏启动失败',error);document.getElementById('loading-status').textContent='加载遇到问题，请重新加载。';const retry=document.getElementById('retry-loading');retry.hidden=false;retry.onclick=()=>location.reload();}
