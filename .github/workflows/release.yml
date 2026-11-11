@@ -48,7 +48,9 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          node release/notes.mjs > "$RUNNER_TEMP/notes.md"
+          # GitHub 自动生成的 PR 列表是英文的，交给 notes.mjs 翻成中文接在说明后面；生成失败就只发自己写的说明。
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" --jq .body > "$RUNNER_TEMP/generated.md" || : > "$RUNNER_TEMP/generated.md"
+          node release/notes.mjs "$RUNNER_TEMP/generated.md" > "$RUNNER_TEMP/notes.md"
           # 带连字符的版本号（如 1.0.0-beta.1）标记为预发布。
           flags=()
           case "$VERSION" in *-*) flags+=(--prerelease) ;; esac
@@ -57,8 +59,7 @@ jobs:
             "dist/draw-clash-playtest-$VERSION.zip" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Draw & Clash $VERSION" \
+            --title "涂鸦小队 $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md" \
-            --generate-notes \
             "${flags[@]}"
           echo "Published v$VERSION" >> "$GITHUB_STEP_SUMMARY"

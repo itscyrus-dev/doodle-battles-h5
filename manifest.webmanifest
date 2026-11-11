@@ -1,7 +1,7 @@
 {
-  "name": "Draw & Clash · 涂鸦小队",
-  "short_name": "Draw & Clash",
-  "description": "Draw your squad and its battle plan, then watch it fight. A roguelike tactics game for PC with an expedition mode and 40 hand-made campaign levels.",
+  "name": "涂鸦小队",
+  "short_name": "涂鸦小队",
+  "description": "画一条线，小队就照着打。电脑版肉鸽战术游戏，有远征模式和 40 个手工设计的战役关卡。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
