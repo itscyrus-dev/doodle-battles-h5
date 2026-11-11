@@ -21,5 +21,5 @@ export const kindLabel = c => `${t(c.kind === 'unit' ? 'card.unit' : 'card.tacti
 // 牌面（用在战利品、商店、牌库里）：类别、费用、图、名字、说明。
 export function cardFace(entry, perks = {}) {
   const c = cardStats(entry, perks);
-  return { c, html: `<span class="kind">${esc(kindLabel(c))}</span>${costBadge(c)}${cardArt(c, 168)}<b>${esc(cardName(c.id, c.up))}</b><small>${esc(cardText(c)).replace(/\n/g, '<br>')}</small>` };
+  return { c, html: `<span class="kind card-kind">${esc(kindLabel(c))}</span>${costBadge(c)}${cardArt(c, 168)}<b>${esc(cardName(c.id, c.up))}</b><small>${esc(cardText(c)).replace(/\n/g, '<br>')}</small>` };
 }

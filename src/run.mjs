@@ -2,7 +2,7 @@
 // 这里只有规则和状态，不碰界面和存储。地图、遭遇战和抽牌都由种子决定，存档只需要记玩家的状态和选择。
 import { TYPES, UNIT_ORDER } from './data.mjs';
 import { RELICS, RELIC_ORDER, runMods, relicPerks } from './relics.mjs';
-import { CARDS, CARD_ORDER, RARITY_WEIGHT, STARTER_DECKS, HAND, MOMENTUM, cardStats } from './cards.mjs';
+import { CARDS, CARD_ORDER, RARITY_WEIGHT, STARTER_DECKS, HAND, MOMENTUM, cardStats, CARD_TEAM_LIMIT } from './cards.mjs';
 import { rng, hash, pickOne, makeEncounter, ACTS, ROWS } from './encounters.mjs';
 import { validRoute } from './routes.mjs';
 
@@ -12,13 +12,13 @@ export const MIN_DECK = 5;
 // 开局编制：起始牌库和一件遗物。
 export const WARBANDS = {
   iron: { deck: STARTER_DECKS.iron, relics: ['thick'] },
-  raiders: { deck: STARTER_DECKS.raiders, relics: ['swift'] },
-  sappers: { deck: STARTER_DECKS.sappers, relics: ['anchor'] }
+  sappers: { deck: STARTER_DECKS.sappers, relics: ['longbow'] },
+  raiders: { deck: STARTER_DECKS.raiders, relics: ['swift'] }
 };
 export const WARBAND_ORDER = Object.keys(WARBANDS);
 export const PRICES = { card: { common: 40, uncommon: 60, rare: 85 }, relic: { common: 80, rare: 120 }, heart: 40, ink: 30, remove: 50, upgrade: 60 };
 export const COINS = { battle: 14, elite: 30, boss: 60, star: 4 };
-export const WIN_INK = 5; // 每打赢一场普通战，墨水上限 +5
+export const WIN_INK = 8; // 每打赢一场普通战或精英战，墨水上限 +8
 export const NODE_KINDS = ['battle', 'elite', 'event', 'shop', 'camp', 'treasure', 'boss'];
 export const isFight = kind => kind === 'battle' || kind === 'elite' || kind === 'boss';
 
@@ -177,7 +177,7 @@ export function battleOf(run) {
   const encounter = makeEncounter({ seed: run.seed, act: run.act, row: node.row, kind: node.kind, node: node.id });
   const def = { index: -1, budget: run.ink - run.extra * HAND.extraCost, enemies: encounter.enemies, rocks: encounter.rocks, par: encounter.par, title: encounter.name };
   const hand = run.hand.map(index => ({ index, ...cardStats(run.deck[index], perks) }));
-  return { node, encounter, def, mods: runMods(run, encounter.enemyMods), hand, momentum: { ...MOMENTUM, start: MOMENTUM.start + perks.momentum } };
+  return { node, encounter, def, mods: runMods(run, encounter.enemyMods, CARD_TEAM_LIMIT), hand, momentum: { ...MOMENTUM, start: MOMENTUM.start + perks.momentum } };
 }
 
 // ---------- 战斗结果 ----------
@@ -201,7 +201,7 @@ export function finishBattle(run, result) {
   const rand = rng(hash(run.seed, 'spoils', node.id));
   let ink = 0;
   if (node.kind === 'battle') { ink = WIN_INK; run.ink += ink; run.pending = { kind: 'spoils', coins, bounty, ink, options: cardChoices(run, 3, rand) }; }
-  else if (node.kind === 'elite') { run.stats.elites++; run.pending = { kind: 'elite', coins, bounty, ink, options: relicChoices(run, 3, rand, .4) }; }
+  else if (node.kind === 'elite') { ink = WIN_INK; run.ink += ink; run.stats.elites++; run.pending = { kind: 'elite', coins, bounty, ink, options: relicChoices(run, 3, rand, .4) }; }
   else {
     ink = 20; run.stats.bosses++; run.hearts = run.maxHearts; run.ink += ink;
     run.pending = { kind: 'boss', coins, bounty, ink, options: relicChoices(run, 3, rand, 1) };

@@ -493,3 +493,6 @@ div.pick.up:hover { box-shadow: 0 5px 0 var(--gold-deep); }
 .event-card { display: flex; justify-content: center; margin-top: 10px; }
 .event-card .pick { width: 220px; animation: none; }
 .event-card .pick img, .event-card .pick canvas { width: 72px; height: 72px; }
+.pick .card-kind { align-self: stretch; text-align: left; padding-right: 48px; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shop-grid .pick img, .shop-grid .pick canvas { width: 48px; height: 48px; }

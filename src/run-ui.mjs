@@ -185,7 +185,7 @@ export function createRunUI(app) {
     };
     const sheet = openSheet({
       className: 'wide full', dismissable: false, title: `${img(nodeArt('shop'), 'coin-inline')} ${esc(t('shop.title'))}`,
-      body: `<p class="muted">${esc(t('shop.sub'))}</p><p style="margin-top:6px"><span class="pill">${img('icons/coin.webp')}${r.coins}</span></p>
+      body: `<div class="shop-head"><p class="muted">${esc(t('shop.sub'))}</p><span class="pill">${img('icons/coin.webp')}${r.coins}</span></div>
         <div class="shop-grid">${stock.filter(x => x.s.kind === 'card').map(ware).join('')}</div>
         <div class="shop-grid">${stock.filter(x => x.s.kind !== 'card').map(ware).join('')}</div>
         <div class="actions"><button class="btn btn-gold big block" id="shop-leave">${esc(t('shop.leave'))} ${icon('next')}</button></div>`

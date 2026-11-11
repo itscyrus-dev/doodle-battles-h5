@@ -31,8 +31,9 @@ export const RELIC_ORDER = Object.keys(RELICS);
 function multiply(into, from) { for (const [k, v] of Object.entries(from || {})) into[k] = (into[k] ?? 1) * v; return into; }
 
 // 把一局远征的遗物和敌军强化合成战斗模拟需要的修正。
-export function runMods({ relics = [] } = {}, enemy = null) {
-  const mods = { all: {}, units: {}, enemy: enemy ? { ...enemy } : null, cost: {}, teamLimit: TEAM_LIMIT, flags: {} };
+// teamLimit 是出战人数的基数（卡牌战比战役多）。
+export function runMods({ relics = [] } = {}, enemy = null, teamLimit = TEAM_LIMIT) {
+  const mods = { all: {}, units: {}, enemy: enemy ? { ...enemy } : null, cost: {}, teamLimit, flags: {} };
   let costScale = 1;
   for (const id of relics) {
     const r = RELICS[id]; if (!r) continue;

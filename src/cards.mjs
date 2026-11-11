@@ -1,5 +1,4 @@
 // 远征的卡牌：兵牌（一整支小队，可带关键词）和战术牌（开战后用战墨打出）。只有数据和规则，不碰界面。
-import { TYPES } from './data.mjs';
 import { KEYWORDS, TACTICS } from './engine.mjs';
 
 export const KEYWORD_ORDER = Object.keys(KEYWORDS);
@@ -43,16 +42,21 @@ export const STARTER_DECKS = {
 };
 // 手牌与战墨的规则。
 export const HAND = { size: 5, extraCost: 10, extraMax: 3 };
+// 卡牌战的出战人数上限（战役是 10 人），扩编令遗物在此基础上再加。
+export const CARD_TEAM_LIMIT = 14;
 export const MOMENTUM = { start: 1, perKill: 1, perSeconds: 8, max: 9 };
 
+// 升级：小队（2 人以上）多 1 人、墨水不变；单人牌墨水 −30%；战术牌换成 TACTICS 里的 up 数值。
+export const UPGRADE = { extra: 1, single: .7 };
 // 一张牌（牌库里的一项 { id, up }）实际放出的人数、墨水和战墨。horde 是“人海”遗物：3 人以上的小队多 1 人。
 // thrift 是“省墨”遗物：兵牌墨水 −10%；tactician 是“军师”：战术牌战墨 −1（最少 1）。
 export function cardStats(entry, { horde = false, tactician = false, thrift = false } = {}) {
   const c = CARDS[entry.id];
   if (c.kind === 'tactic') return { ...c, id: entry.id, up: !!entry.up, cost: Math.max(1, c.cost - (tactician ? 1 : 0)) };
-  const n = c.n + (entry.up ? 1 : 0) + (horde && c.n >= 3 ? 1 : 0);
-  const cost = Math.round((c.cost + (entry.up ? Math.round(TYPES[c.type].cost * .75) : 0)) * (thrift ? .9 : 1));
-  return { ...c, id: entry.id, up: !!entry.up, n, cost, kw: c.kw || [] };
+  const up = !!entry.up, single = c.n === 1;
+  const n = c.n + (up && !single ? UPGRADE.extra : 0) + (horde && c.n >= 3 ? 1 : 0);
+  const cost = Math.round(c.cost * (up && single ? UPGRADE.single : 1) * (thrift ? .9 : 1));
+  return { ...c, id: entry.id, up, n, cost, kw: c.kw || [] };
 }
 // 牌的强度粗估（墨水值），给遭遇战难度和测试用。
 export const deckInk = deck => deck.reduce((s, e) => s + (CARDS[e.id].kind === 'unit' ? cardStats(e).cost : 0), 0);

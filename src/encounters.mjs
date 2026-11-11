@@ -8,14 +8,14 @@ export const pickOne = (rand, list) => list[Math.floor(rand() * list.length)];
 
 export const ACT_THEMES = ['meadow', 'canyon', 'snow'];
 export const ACTS = 3, ROWS = 6; // 每章 6 层普通节点，第 7 层是首领
-// 每一步（章节 × 层）玩家大致会有的墨水，用来决定敌军规模。
+// 每一步（章节 × 层）玩家大致会有的墨水，用来决定敌军规模（卡牌远征：每打赢一场 +8，约六成的层是战斗）。
 // 出战人数有上限，墨水再多也用不完，所以封顶。
-export const expectedInk = step => Math.min(240, 100 + 8 * step);
+export const expectedInk = step => Math.min(240, 100 + 6 * step);
 export const stepOf = (act, row) => act * (ROWS + 1) + row;
 // 敌军价值 = 预计墨水 × 比例。普通战随层数变难；精英更强；首领战的比例只算护卫，不含首领本人。
-export const RATIO = { battle: [.8, .86, .92, .98, 1.04, 1.1], elite: 1.35, boss: [.7, .9, .75] };
+export const RATIO = { battle: [.8, .84, .88, .92, .96, 1], elite: [.9, 1.05, 1.05], boss: [.55, 1, .92] };
 // 敌军属性强化：每章生命 +25%、伤害 +15%（出战人数有上限，后期主要靠这个变难）；精英战再加生命。
-export const enemyScale = (act, kind) => ({ hp: (1 + act * .25) * (kind === 'elite' ? 1.2 : 1), damage: 1 + act * .15 });
+export const enemyScale = (act, kind) => ({ hp: (1 + act * .25) * (kind === 'elite' ? 1.15 : 1), damage: 1 + act * .15 });
 
 // 各章允许出现的敌方兵种（精英和首领可以提前出现更重的兵种）。
 function allowed(type, act, row, kind) {
@@ -97,7 +97,7 @@ function terrain(rand, act, kind, fixed) {
 // 生成一场遭遇战。value 是敌军兵种墨水价值之和的目标；实际生成的规模会落在目标附近。
 export function makeEncounter({ seed, act, row, kind = 'battle', node = '' }) {
   const rand = rng(hash(seed, act, row, kind, node));
-  const step = stepOf(act, row), ratio = kind === 'battle' ? RATIO.battle[Math.min(row, RATIO.battle.length - 1)] : kind === 'boss' ? RATIO.boss[act] ?? RATIO.boss.at(-1) : RATIO.elite;
+  const step = stepOf(act, row), ratio = kind === 'battle' ? RATIO.battle[Math.min(row, RATIO.battle.length - 1)] : kind === 'boss' ? RATIO.boss[act] ?? RATIO.boss.at(-1) : RATIO.elite[act] ?? RATIO.elite.at(-1);
   const target = Math.round(expectedInk(step) * ratio);
   const bossDef = kind === 'boss' ? BOSSES[act % BOSSES.length] : null;
   const templateId = bossDef ? bossDef.id : pickOne(rand, TEMPLATE_ORDER);

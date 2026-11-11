@@ -94,7 +94,7 @@ export function createBattle(app) {
     for (const cv of $$('canvas[data-unit]', el('roster'))) paintUnit(cv, cv.dataset.unit, save().skin);
     for (const b of $$('[data-hand]', el('roster'))) b.onclick = () => useCard(+b.dataset.hand);
     el('b-handbar').hidden = false;
-    el('b-handbar').innerHTML = `<button class="btn btn-paper small" id="b-extra"></button><button class="btn btn-paper small" id="b-mull"></button><span class="deck">${esc(t('hand.deck', { n: run().deck.length }))}</span>`;
+    el('b-handbar').innerHTML = `<button class="btn btn-paper small" id="b-extra"></button><button class="btn btn-paper small" id="b-mull"></button><span class="deck"></span>`;
     el('b-extra').onclick = () => { if (g.phase !== 'build' || !canExtraDraw(run())) return; disarm(); extraDraw(run()); app.persist(); const plan = currentDraft(); reset(g.level, false, plan); audio.sfx('pickup'); };
     el('b-mull').onclick = () => { if (g.phase !== 'build' || !canMulligan(run()) || playedCards().size) return; disarm(); mulligan(run()); app.persist(); reset(g.level, false, []); audio.sfx('pickup'); toast(t('hand.mulliganDone')); };
   }
@@ -154,8 +154,10 @@ export function createBattle(app) {
       b.querySelector('.state').textContent = build ? (isPlayed ? t('hand.played') : c.kind === 'tactic' ? t('hand.waiting') : '') : c.kind === 'tactic' ? (used.has(c.index) ? t('hand.used') : short ? t('hand.need', { n: c.cost - g.momentum }) : '') : '';
     }
     const r = run();
-    if (el('b-extra')) { el('b-extra').textContent = t('hand.extra', { n: HAND.extraCost, left: HAND.extraMax - r.extra }); el('b-extra').disabled = !build || !canExtraDraw(r) || g.remaining < HAND.extraCost; }
-    if (el('b-mull')) { el('b-mull').textContent = r.mulligan ? t('hand.mulliganUsed') : t('hand.mulligan'); el('b-mull').disabled = !build || !canMulligan(r) || played.size > 0; }
+    const left = HAND.extraMax - r.extra, deckLine = $('.deck', el('b-handbar'));
+    if (deckLine) deckLine.textContent = t('hand.deck', { n: r.deck.length, left });
+    if (el('b-extra')) { Object.assign(el('b-extra').dataset, { tipTitle: t('hand.extraTitle'), tip: t('hand.extraTip', { n: HAND.extraCost, left }) }); el('b-extra').textContent = t('hand.extra', { n: HAND.extraCost }); el('b-extra').disabled = !build || !canExtraDraw(r) || g.remaining < HAND.extraCost; }
+    if (el('b-mull')) { Object.assign(el('b-mull').dataset, { tipTitle: t('hand.mulligan'), tip: t('hand.mulliganTip') }); el('b-mull').textContent = r.mulligan ? t('hand.mulliganUsed') : t('hand.mulligan'); el('b-mull').disabled = !build || !canMulligan(r) || played.size > 0; }
   }
 
   function buildRoster() {

@@ -20,7 +20,8 @@ test('卡牌数据完整：兵种、人数、关键词和战术都存在；起�
   }
   for (const deck of Object.values(STARTER_DECKS)) assert.ok(deck.every(id => CARDS[id]));
   const up = cardStats({ id: 'knights', up: true }), base = cardStats({ id: 'knights', up: false });
-  assert.equal(up.n, base.n + 1); assert.ok(up.cost > base.cost);
+  assert.equal(up.n, base.n + 1); assert.equal(up.cost, base.cost, '小队升级：多 1 人，墨水不变');
+  const giant = cardStats({ id: 'giant', up: true }); assert.equal(giant.n, 1); assert.equal(giant.cost, Math.round(CARDS.giant.cost * .7), '单人牌升级：墨水 −30%');
   assert.equal(cardStats({ id: 'knights', up: false }, { horde: true }).n, base.n + 1, '人海：3 人以上的小队多 1 人');
   assert.equal(cardStats({ id: 'archers', up: false }, { horde: true }).n, 2);
   assert.equal(cardStats({ id: 't_frost', up: false }, { tactician: true }).cost, CARDS.t_frost.cost - 1, '军师：战术牌便宜 1 点');
