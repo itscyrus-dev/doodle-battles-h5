@@ -6,7 +6,7 @@ import { STRINGS, t, pick } from '../src/i18n.mjs';
 import { UNIT_ORDER, ITEM_ORDER } from '../src/data.mjs';
 import { ACHIEVEMENTS, SKINS } from '../src/meta.mjs';
 import { CARD_ORDER, KEYWORD_ORDER, TACTIC_ORDER, CARDS, cardStats } from '../src/cards.mjs';
-import { RELIC_ORDER } from '../src/relics.mjs';
+import { STICKER_ORDER, TIERS } from '../src/stickers.mjs';
 import { WARBAND_ORDER, EVENTS, campOptions } from '../src/run.mjs';
 import { TEMPLATE_ORDER, BOSSES } from '../src/encounters.mjs';
 import { LESSONS } from '../src/tutorial.mjs';
@@ -37,7 +37,7 @@ test('按规则拼出来的条目（兵种、道具、成就、卡牌、遗物�
     ...CARD_ORDER.map(id => `card.${id}`), ...['common', 'uncommon', 'rare'].map(r => `rarity.${r}`),
     ...KEYWORD_ORDER.flatMap(k => [`kw.${k}`, `kw.${k}.desc`]),
     ...TACTIC_ORDER.map(e => `tactic.${e}.desc`), ...CARD_ORDER.filter(id => CARDS[id].targeted).map(id => `tactic.${CARDS[id].effect}.target`),
-    ...RELIC_ORDER.flatMap(id => [`relic.${id}`, `relic.${id}.desc`]),
+    ...STICKER_ORDER.flatMap(id => [`sticker.${id}`, `sticker.${id}.desc`]), ...TIERS.map(tier => `sticker.tier.${tier}`),
     ...WARBAND_ORDER.flatMap(id => [`warband.${id}`, `warband.${id}.desc`]),
     ...Object.entries(EVENTS).flatMap(([id, e]) => [`event.${id}`, `event.${id}.text`, ...e.choices.map(c => `event.${id}.${c}`)]),
     ...campOptions({ hearts: 1, maxHearts: 3, deck: [] }).flatMap(o => [`camp.${o.id}`, `camp.${o.id}.desc`, `camp.${o.id}.no`]),

@@ -12,6 +12,7 @@ import { draftOf, applyDraft } from './drafts.mjs';
 import { recordBattle, recordRunBattle, buyHint, HINT_COST, REWARDS } from './meta.mjs';
 import { SOLUTIONS } from './solutions.mjs';
 import { battleOf, finishBattle } from './run.mjs';
+import { STICKERS } from './stickers.mjs';
 import { REFUND } from './cards.mjs';
 import { cardName, kwName, cardText, cardArt } from './card-view.mjs';
 import { LESSONS, lessonCtx } from './tutorial.mjs';
@@ -61,8 +62,10 @@ export function createBattle(app) {
   function relabel() {
     renderer.words = {
       victory: mode === 'sandbox' ? t('result.sandboxWin') : t('battle.victory'), defeat: mode === 'sandbox' ? t('result.sandboxLose') : t('battle.defeat'), timeUp: t('battle.timeUp'),
-      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), raid: t('battle.raid'), outflank: t('battle.outflank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy')
+      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), raid: t('battle.raid'), outflank: t('battle.outflank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy'),
+      drop: t('pop.drop'), ambushTag: t('preview.ambush'), loneTag: t('preview.lone')
     };
+    renderer.stickerName = id => t(`sticker.${id}`);
     el('b-back').innerHTML = icon('back'); el('b-back').setAttribute('aria-label', t('common.back'));
     el('b-undo').innerHTML = icon('undo'); el('b-undo').setAttribute('aria-label', t('battle.undo')); el('b-undo').dataset.tipTitle = `${t('battle.undo')} · Ctrl+Z`;
     el('b-clear').innerHTML = icon('trash'); el('b-clear').setAttribute('aria-label', t('battle.clear')); el('b-clear').dataset.tipTitle = t('battle.clear');
@@ -218,7 +221,7 @@ export function createBattle(app) {
   }
   function repaintCards() { for (const card of $$('#roster .card')) paintUnit(card.querySelector('canvas'), card.dataset.type, save().skin, { locked: card.disabled }); }
 
-  // ---------- 右栏：敌情、道具、遗物、操作说明 ----------
+  // ---------- 右栏：敌情、道具、操作说明 ----------
   function buildIntel() {
     if (cards()) { el('b-intel').innerHTML = ''; return; }
     const enemies = mode === 'sandbox' ? [] : g.enemy, counts = UNIT_ORDER.map(type => [type, enemies.filter(u => u.type === type && !u.boss).length]).filter(([, n]) => n);
@@ -273,6 +276,7 @@ export function createBattle(app) {
     el('screen-battle').classList.toggle('card-mode', cards());
     for (const L of LESSONS) el('screen-battle').classList.toggle(`lesson-${L.id}`, tutorial() && ctx.lesson.id === L.id);
     renderer.guidePath = tutorial() ? ctx.lesson.guide || null : null;
+    renderer.stickers = inRun() ? run().stickers.slice() : [];
     placeControls();
     if (campaign()) { save().currentLevel = level; app.persist(); if (level === 0 && !save().guides[0]) selected = 'guard'; }
     el('panel-build').hidden = false; el('panel-fight').hidden = true; el('b-left').classList.remove('locked');
@@ -338,7 +342,7 @@ export function createBattle(app) {
       return { title: t('tutorial.tactics.ready'), text: t('tutorial.tactics.go', { n: g.remaining }), focus: 'start' };
     }
     if (tactic && !used.has(tactic.index)) return g.remaining >= tactic.cost ? { title: t('tutorial.tactics.cast'), text: t('tutorial.tactics.castText'), focus: tactic.index } : null;
-    return g.relicStats.refunded ? { title: t('tutorial.tactics.refund'), text: '' } : null;
+    return g.tally.refunded ? { title: t('tutorial.tactics.refund'), text: '' } : null;
   }
   function updateLesson(build) {
     const step = tutorial() ? lessonStep(build) : null;
@@ -364,7 +368,7 @@ export function createBattle(app) {
     const build = g.phase === 'build', lesson = build ? updateGuide() : (el('coach').hidden = true, null);
     el('b-ink').textContent = mode === 'sandbox' ? '∞' : g.remaining; el('b-inkmax').textContent = mode === 'sandbox' || (cards() && !build) ? '' : `/${g.budget}`;
     el('b-inkpill').classList.toggle('low', mode !== 'sandbox' && build && g.remaining < 10);
-    setHTML('b-status', inRun() ? `${run().relics.map(id => `<span class="relic mini" ${tipAttrs(t(`relic.${id}`), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span>` : '');
+    setHTML('b-status', inRun() ? `${run().stickers.map(id => `<span class="sticker mini tier-${STICKERS[id].tier}" data-sticker-id="${id}" ${tipAttrs(t(`sticker.${id}`), t(`sticker.${id}.desc`))}>${img(`icons/sticker-${id}.webp`)}</span>`).join('')}<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span>` : '');
     if (cards()) { if (!build && armed) disarm(); refreshHand(); }
 
     const list = build ? [...g.plan, ...(mode === 'sandbox' ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
@@ -631,7 +635,7 @@ export function createBattle(app) {
       const result = finishBattle(run(), { won, survivors, deployed, stars: starsFor(g), kills, tactics: used.size, plan: g.plan });
       const achievements = recordRunBattle(save(), g, kind);
       app.persist(); app.announce(achievements);
-      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, cards: playedCards().size, tactics: used.size });
+      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, cards: playedCards().size, tactics: used.size, stickers: run().stickers.join(',') });
       return { review, survivors, deployed, comparison, won, result, kind, feats, timeout: !won && g.elapsed >= TIME_LIMIT };
     }
     const spotlight = campaign() ? SPOTLIGHTS[g.level] : null, medalNow = !!spotlight?.check(g), hadMedal = !!save().medals[g.level];
@@ -655,8 +659,9 @@ export function createBattle(app) {
     const mine = game.units.filter(u => u.team === 0), mvp = mine.reduce((a, b) => (b.damageDealt > (a?.damageDealt || 0) ? b : a), null);
     return {
       damage: Math.round(mine.reduce((s, u) => s + u.damageDealt, 0)), kills: game.units.filter(u => u.team === 1 && u.hp <= 0).length,
-      flanks: game.relicStats.flanks, charges: game.relicStats.primed + game.stats[0].charges, tactics: game.relicStats.tactics, refunded: game.relicStats.refunded,
-      routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null
+      flanks: game.tally.flanks, charges: game.tally.primed + game.stats[0].charges, tactics: game.tally.tactics, refunded: game.tally.refunded,
+      routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null,
+      stickers: { ...game.tally.stickers }
     };
   }
   // 输了最想知道两件事：为什么输、下次怎么改。挑一条和建议对得上的观察放在建议前面；超时就直接说超时。
@@ -669,7 +674,9 @@ export function createBattle(app) {
   // 详细数据默认收起：全部观察、和上一次的对比、战功数字、每个兵种的表现。
   function runDetails(review, comparison, f) {
     const nums = [['damage', f.damage], ['strikes', f.charges + f.flanks], ['tactics', f.tactics]].map(([k, n]) => `${t(`feats.${k}`)} ${n}`).join(' · ');
+    const stuck = Object.entries(f.stickers || {}).map(([id, n]) => `${t(`sticker.${id}`)} ×${n}`).join(' · ');
     return `<details class="review"><summary>${esc(t('result.details'))}</summary>
+      ${stuck ? `<p>${esc(t('result.stickers', { list: stuck }))}</p>` : ''}
       ${review.observations.map(o => `<p>${esc(sayObs(o))}</p>`).join('')}
       ${comparison ? `<p class="muted">${esc(comparison)}</p>` : ''}
       <p class="muted">${esc(nums)}</p>${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}
@@ -769,6 +776,10 @@ export function createBattle(app) {
   // 把模拟里的表现事件变成震屏、震动和音效；只影响表现，不改变战斗。
   function feel(events) {
     const has = name => events.includes(name);
+    // 贴纸生效：顶栏那张贴纸跳一下。
+    const stuck = [...new Set(events.filter(e => e.startsWith('sticker:')).map(e => e.slice(8)))];
+    for (const id of stuck) { const chip = document.querySelector(`#b-status [data-sticker-id="${id}"]`); if (chip) { chip.classList.remove('pop'); void chip.offsetWidth; chip.classList.add('pop'); } }
+    if (stuck.length) audio.sfx('star', 2);
     if (has('thunder')) { renderer.kick(9); buzz([12, 30, 40], true); audio.sfx('thunder'); }
     if (has('boom')) { renderer.kick(6); buzz(22); audio.sfx('boom'); }
     else if (has('slam')) { renderer.kick(2.5); buzz(12); audio.sfx('slam'); }

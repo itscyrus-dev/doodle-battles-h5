@@ -1,10 +1,10 @@
 // 行军路线、驻守和遗物效果的规则测试。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Battle, unitDef, RELIC_FX } from '../src/engine.mjs';
+import { Battle, unitDef } from '../src/engine.mjs';
 import { TYPES, W, H, MARGIN } from '../src/data.mjs';
 import { shapeRoute, fitRoute, ROUTE } from '../src/routes.mjs';
-import { runMods, RELICS } from '../src/relics.mjs';
+import { runMods } from '../src/stickers.mjs';
 import { center } from '../src/combat.mjs';
 
 const sandbox = (blue, red, mods) => { const g = new Battle({ index: -1, budget: 999, enemies: [], rocks: [] }, { sandbox: true, mods }); for (const [t, x, y] of blue) assert.equal(g.place(t, x, y, 0), true); for (const [t, x, y] of red) assert.equal(g.place(t, x, y, 1), true); return g; };
@@ -74,60 +74,6 @@ test('驻守的医师只治疗够得着的人；没有命令的兵种行为不�
   near.hp = 40; far.hp = 40; near.def.speed = 0; far.def.speed = 0;
   run(g, 120);
   assert.ok(near.hp > 40, '射程内的队友得到治疗'); assert.equal(far.hp, 40, '射程外的不治疗'); assert.equal(healer.x, 120, '医师没有离开驻守点');
-});
-
-test('遗物合成战斗修正：倍率叠乘、墨水打折、扩编', () => {
-  const mods = runMods({ relics: ['thick', 'thrift', 'squad', 'longbow', 'swift'] }, { hp: 1.1 });
-  const knight = unitDef('knight', 0, mods);
-  assert.ok(Math.abs(knight.hp - TYPES.knight.hp * 1.15) < 1e-9);
-  assert.ok(Math.abs(unitDef('archer', 0, mods).range - TYPES.archer.range * 1.15) < 1e-9);
-  assert.equal(unitDef('knight', 1, mods).hp, TYPES.knight.hp * 1.1, '敌军只吃敌军强化');
-  assert.equal(mods.cost.giant, Math.round(TYPES.giant.cost * .9)); assert.equal(mods.teamLimit, 12); assert.equal(mods.flags.swift, true);
-  assert.equal(new Battle(0, { mods }).cost('guard'), Math.round(TYPES.guard.cost * .9));
-  const g = new Battle({ index: -1, budget: 999, enemies: [], rocks: [] }, { sandbox: true, mods });
-  for (let i = 0; i < 11; i++) g.place(i < 5 ? 'knight' : i < 8 ? 'guard' : 'archer', 100 + (i % 4) * 60, 90 + Math.floor(i / 4) * 60);
-  assert.ok(g.count(null) > 10, '扩编后可以上场超过 10 人');
-  for (const id of Object.keys(RELICS)) assert.ok(['common', 'rare'].includes(RELICS[id].tier));
-});
-
-test('疾行墨让行军更快；冲锋墨让走完路线后的第一击翻倍', () => {
-  const march = mods => { const g = sandbox([['knight', 100, 300]], [['guard', 680, 520]], mods); const pid = g.plan[0].pid; g.setRoute([pid], line({ x: 100, y: 300 }, { x: 330, y: 300 }), pid); g.start(); g.units[1].cool = 999; for (let i = 0; i < 60; i++) g.update(1 / 60); return g.units[0].x; };
-  const base = march(null), fast = march(runMods({ relics: ['swift'] }));
-  assert.ok(Math.abs((fast - 100) / (base - 100) - RELIC_FX.swift) < .02, `疾行倍率 ${(fast - 100) / (base - 100)}`);
-  const g = sandbox([['knight', 300, 300]], [['giant', 420, 300]], runMods({ relics: ['charge'] }));
-  const pid = g.plan[0].pid; g.setRoute([pid], line({ x: 300, y: 300 }, { x: 360, y: 300 }), pid); g.start();
-  const giant = g.units[1]; giant.cool = 999; giant.def.speed = 0; let hp = giant.hp; const hits = [];
-  for (let i = 0; i < 600 && hits.length < 2; i++) { g.update(1 / 60); if (giant.hp < hp) { hits.push(hp - giant.hp); hp = giant.hp; } }
-  assert.ok(Math.abs(hits[0] - TYPES.knight.damage * RELIC_FX.charge) < 1e-9, `首击 ${hits[0]}`); assert.equal(hits[1], TYPES.knight.damage);
-  assert.equal(g.relicStats.primed, 1);
-});
-
-test('侧击墨：从背后砍中加伤；坚守墨：驻守时受到的伤害减少', () => {
-  const g = sandbox([['knight', 300, 300]], [['guard', 400, 300]], runMods({ relics: ['flank'] })); g.start();
-  const [k, foe] = g.units; foe.angle = Math.PI; // 敌人面朝左
-  k.x = 430; k.y = 300; k.angle = Math.PI; k.cool = 0; foe.cool = 999; foe.def.speed = 0; k.def.speed = 0;
-  let hp = foe.hp; for (let i = 0; i < 120 && foe.hp === hp; i++) { g.update(1 / 60); foe.angle = Math.PI; }
-  assert.ok(Math.abs(hp - foe.hp - TYPES.knight.damage * RELIC_FX.flank) < 1e-9, '从背后砍中'); assert.equal(g.relicStats.flanks, 1);
-  const h = sandbox([['guard', 300, 300]], [['knight', 600, 300]], runMods({ relics: ['anchor'] })); h.setHold([h.plan[0].pid], true); h.start();
-  const before = h.units[0].hp; h.hit(h.units[0], 10, h.units[1]); assert.ok(Math.abs(before - h.units[0].hp - 10 * RELIC_FX.anchor) < 1e-9);
-});
-
-test('墨晕留下减速墨潭；回春墨持续回血；余墨按剩余墨水加伤', () => {
-  const slowed = relics => {
-    const g = sandbox([['knight', 300, 300], ['knight', 100, 520]], [['knight', 620, 300]], runMods({ relics })); g.start();
-    const [mine, , foe] = g.units; foe.cool = 999;
-    g.hit(mine, 999, foe); foe.x = mine.x; foe.y = mine.y; const x0 = foe.x, y0 = foe.y;
-    for (let i = 0; i < 10; i++) g.update(1 / 60);
-    return { g, moved: Math.hypot(foe.x - x0, foe.y - y0) };
-  };
-  const wet = slowed(['bleed']), dry = slowed([]);
-  assert.equal(wet.g.puddles.length, 1); assert.equal(dry.g.puddles.length, 0);
-  assert.ok(Math.abs(wet.moved / dry.moved - RELIC_FX.bleed.slow) < .02, `墨潭减速 ${wet.moved / dry.moved}`);
-  const h = sandbox([['knight', 300, 300]], [['knight', 620, 300]], runMods({ relics: ['spring'] })); h.start(); h.units[1].cool = 999;
-  h.units[0].hp = 30; h.update(1 / 60); assert.ok(h.units[0].hp > 30, '回春墨回血'); assert.ok(h.relicStats.spring > 0);
-  const echo = new Battle(0, { mods: runMods({ relics: ['echo'] }) }); echo.place('knight', 300, 300); echo.start();
-  assert.ok(Math.abs(echo.echoBonus - (1 + Math.min(RELIC_FX.echo.max, Math.floor(80 / RELIC_FX.echo.per) * .01))) < 1e-9);
-  assert.ok(Math.abs(echo.units[0].def.damage - TYPES.knight.damage * echo.echoBonus) < 1e-9);
 });
 
 test('空的战斗修正不改变任何结果', () => {

@@ -1,10 +1,10 @@
-// 卡牌规则测试：卡牌数据、整队放置与收回、关键词、战术牌、战墨和卡牌遗物。
+// 卡牌规则测试：卡牌数据、整队放置与收回、关键词、战术牌和墨水返还。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Battle, KEYWORDS, TACTICS, RELIC_FX } from '../src/engine.mjs';
+import { Battle, KEYWORDS, TACTICS } from '../src/engine.mjs';
 import { TYPES, UNIT_ORDER, ZONE } from '../src/data.mjs';
 import { CARDS, CARD_ORDER, STARTER_DECKS, KEYWORD_ORDER, TACTIC_ORDER, REFUND, cardStats } from '../src/cards.mjs';
-import { runMods, relicPerks } from '../src/relics.mjs';
+import { STICKER_FX, stickerPerks } from '../src/stickers.mjs';
 
 const field = (enemies = [], opts = {}) => new Battle({ index: -1, budget: 300, enemies, rocks: [], par: 40 }, { cards: true, refund: REFUND, item: null, ...opts });
 const squad = (card, type, n, kw = [], ink = 0) => ({ card, type, n, kw, ink });
@@ -22,11 +22,11 @@ test('卡牌数据完整：兵种、人数、关键词和战术都存在；起�
   const up = cardStats({ id: 'knights', up: true }), base = cardStats({ id: 'knights', up: false });
   assert.equal(up.n, base.n + 1); assert.equal(up.cost, base.cost, '小队升级：多 1 人，墨水不变');
   const giant = cardStats({ id: 'giant', up: true }); assert.equal(giant.n, 1); assert.equal(giant.cost, Math.round(CARDS.giant.cost * .7), '单人牌升级：墨水 −30%');
-  assert.equal(cardStats({ id: 'knights', up: false }, { horde: true }).n, base.n + 1, '人海：3 人以上的小队多 1 人');
-  assert.equal(cardStats({ id: 'archers', up: false }, { horde: true }).n, 2);
-  assert.equal(cardStats({ id: 't_frost', up: false }, { tactician: true }).cost, Math.round(CARDS.t_frost.cost * .7), '军师：战术牌便宜 30%');
-  assert.equal(cardStats({ id: 'guards', up: false }, { thrift: true }).cost, Math.round(CARDS.guards.cost * .9));
-  assert.deepEqual(relicPerks(['warcry', 'scholar', 'bounty']), { horde: false, tactician: false, thrift: false, inkStart: 15, hand: 1, bounty: 3 });
+  assert.equal(cardStats({ id: 'knights', up: false }, { horde: true }).n, base.n + STICKER_FX.horde.extra, '人海：2 人以上的小队多 2 人');
+  assert.equal(cardStats({ id: 'archers', up: false }, { horde: true }).n, 2 + STICKER_FX.horde.extra);
+  assert.equal(cardStats({ id: 'giant', up: false }, { horde: true }).n, 1, '单人牌不受人海影响');
+  assert.equal(cardStats({ id: 't_frost', up: false }).cost, CARDS.t_frost.cost);
+  assert.deepEqual(stickerPerks(['horde', 'swift']), { horde: true }); assert.deepEqual(stickerPerks([]), { horde: false });
 });
 
 test('打出兵牌：整队按队形放下，墨水按整张牌扣；同一张牌不能打两次；收回退还墨水；撤销也能恢复', () => {
@@ -88,7 +88,7 @@ test('关键词：鼓舞让附近队友加伤，齐射每第三箭多射一支',
   const v = field([foe('giant', 450, 300)]); v.placeSquad(squad(0, 'archer', 1, ['volley']), 300, 300); v.start();
   const a = v.units[0]; v.units[1].cool = 999; v.units[1].def.speed = 0; a.def.speed = 0;
   let fired = 0; for (let i = 0; i < 1200 && a.volleyCount < 3; i++) { const n = v.shots.length; v.update(1 / 60); fired += Math.max(0, v.shots.length - n); }
-  assert.equal(v.relicStats.volleys, 1); assert.ok(fired >= 4, `射出 ${fired} 支箭`);
+  assert.equal(v.tally.volleys, 1); assert.ok(fired >= 4, `射出 ${fired} 支箭`);
 });
 
 test('一种资源：没用完的墨水开战后打战术牌，击倒敌人返还墨水，不够就打不出', () => {
@@ -96,7 +96,7 @@ test('一种资源：没用完的墨水开战后打战术牌，击倒敌人返�
   g.placeSquad(squad(0, 'knight', 1), 300, 300); const left = g.remaining; g.start();
   assert.equal(g.remaining, left, '开战时剩下的墨水原样带进战斗');
   assert.equal(g.cast('frost', { cost: left + 1 }), false, '墨水不够');
-  g.hit(g.units[1], 999, g.units[0]); assert.equal(g.remaining, left + REFUND.perKill, '击倒敌人返还墨水'); assert.equal(g.relicStats.refunded, REFUND.perKill);
+  g.hit(g.units[1], 999, g.units[0]); assert.equal(g.remaining, left + REFUND.perKill, '击倒敌人返还墨水'); assert.equal(g.tally.refunded, REFUND.perKill);
   assert.equal(g.cast('frost', { cost: left + 1 }), true); assert.equal(g.remaining, left + REFUND.perKill - left - 1); assert.ok(g.effects.frost >= TACTICS.frost.duration - .001);
   const h = field([foe('knight', 400, 300)], { refund: { perKill: 4, start: 15 } }); h.placeSquad(squad(0, 'knight', 1), 300, 300); const before = h.remaining; h.start();
   assert.equal(h.remaining, before + 15, '战吼：开战时多 15 墨水');
@@ -116,15 +116,6 @@ test('战术牌：急救、落雷、增援、突击、墨盾、烟幕和集结�
   assert.equal(g.cast('shield'), true); assert.ok(g.units.filter(u => u.team === 0).every(u => u.shield === TACTICS.shield.amount));
   const u = g.units[1], hp = u.hp; g.hit(u, 15, g.units[2]); assert.equal(u.hp, hp, '墨盾先挡伤害'); assert.equal(u.shield, TACTICS.shield.amount - 15);
   assert.equal(g.cast('smoke'), true); assert.equal(g.cast('rally'), true); assert.ok(g.effects.smoke > 0 && g.effects.rally > 0);
-  assert.equal(g.relicStats.tactics, 7, '失败的施放不算');
+  assert.equal(g.tally.tactics, 7, '失败的施放不算');
 });
 
-test('卡牌遗物：连斩越杀越强，墨契按打出的牌数加伤，战吼多给起始战墨', () => {
-  const mods = runMods({ relics: ['fervor', 'pact'] });
-  const g = field([foe('knight', 400, 300), foe('knight', 420, 380), foe('knight', 640, 520)], { mods });
-  g.placeSquad(squad(0, 'knight', 1), 300, 300); g.placeSquad(squad(1, 'archer', 1), 120, 120); g.start();
-  assert.ok(Math.abs(g.pactBonus - (1 + RELIC_FX.pact * 2)) < 1e-9);
-  assert.ok(Math.abs(g.units[0].def.damage - TYPES.knight.damage * g.pactBonus) < 1e-9);
-  g.hit(g.units[2], 999, g.units[0]); g.hit(g.units[3], 999, g.units[0]);
-  assert.ok(Math.abs(g.units[0].fervor - RELIC_FX.fervor.step * 2) < 1e-9); assert.ok(g.boost(g.units[0]) > 1);
-});

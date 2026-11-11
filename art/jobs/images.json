@@ -913,6 +913,136 @@
    "size": "1024x1024",
    "transparent": true,
    "prompt": "Game item icon: a small swirling flame made of glossy dark blue ink with a bright gold core. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_longhaul",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a long winding dotted pencil path that ends in a bold arrowhead, with a tiny boot print where it starts. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_lasso",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a hand-drawn rope loop circling a small red target mark. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_cross",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: two crossing pencil lines forming an X with a bright yellow starburst spark where they cross. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_trail",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a trail of glossy dark blue ink drips with small footprints stuck in the sticky ink. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_swift",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a small boot with little white wings and speed lines. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_ambush",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a round green bush with two curious eyes peeking out between the leaves. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_lone",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a single round blue shield with one gold star in the middle. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_horde",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a crowd of many tiny round blue helmets packed together. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_snowball",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a big round snowball rolling with motion lines and tiny sparkles. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_dice",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: two cute rounded dice tumbling, their faces marked with dots. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_echo",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a small brass horn with curved sound wave lines repeating twice. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_savings",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a small glass jar half full of dark blue ink with a gold coin on its lid. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "sticker_pack",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game sticker icon: a small sealed paper pack of stickers with a crimped zigzag top edge and a gold star seal in the middle. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight. The whole picture is a die-cut paper sticker with a thick white border and a soft drop shadow, centered, fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
   }
  ]
 }

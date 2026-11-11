@@ -209,9 +209,19 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .loadout .slot img { width: 46px; height: 46px; }
 .loadout .slot b { display: block; font-size: 14px; font-weight: 900; }
 .loadout .slot small { display: block; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); line-height: 1.3; }
-.relic-row { display: flex; flex-wrap: wrap; gap: 5px; }
-.relic { width: 40px; height: 40px; border: 2px solid var(--ink); border-radius: 11px; background: #fff7dc; display: grid; place-items: center; }
-.relic img { width: 34px; height: 34px; }
+/* 贴纸：带白边的小贴纸，微微歪着贴。稀有的带一圈金光，传说的会一闪一闪。 */
+.sticker-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.sticker { width: 46px; height: 46px; display: inline-grid; place-items: center; transform: rotate(-4deg); transition: transform .12s; }
+.sticker:nth-child(even) { transform: rotate(4deg); }
+.sticker img { width: 100%; height: 100%; filter: drop-shadow(0 2px 0 rgba(34, 48, 74, .3)); }
+.sticker.tier-rare img { filter: drop-shadow(0 0 3px rgba(227, 165, 28, .95)); }
+.sticker.tier-legend img { filter: drop-shadow(0 0 4px rgba(255, 200, 40, .95)) drop-shadow(0 0 9px rgba(255, 140, 40, .55)); animation: glint 2.4s ease-in-out infinite; }
+@keyframes glint { 50% { filter: drop-shadow(0 0 7px rgba(255, 225, 90, 1)) drop-shadow(0 0 14px rgba(255, 150, 40, .8)); } }
+.sticker[data-sticker] { cursor: pointer; }
+.sticker[data-sticker]:hover, .sticker[data-sticker]:focus-visible { transform: rotate(0) scale(1.15); outline: none; }
+.sticker-detail { display: flex; gap: 18px; align-items: center; text-align: left; }
+.sticker-detail img { width: 112px; height: 112px; flex: none; transform: rotate(-4deg); }
+.sticker-detail.tier-legend img { filter: drop-shadow(0 0 8px rgba(255, 200, 40, .9)); }
 .keys { margin-top: 2px; }
 .keys .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 .keys .row span:last-child { display: flex; gap: 3px; }
@@ -382,6 +392,8 @@ table.units th:first-child, table.units td:first-child { text-align: left; }
 .warband .units canvas { width: 54px; height: 54px; }
 .warband .gear { display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 800; }
 .warband .gear img { width: 30px; height: 30px; }
+.warband .gear .sticker { width: 34px; height: 34px; }
+.warband .gear .sticker img { width: 34px; height: 34px; }
 .event-art { width: 110px; height: 110px; display: block; margin: 0 auto 6px; }
 .tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
 .tabs button { flex: 1; height: 40px; border: 2.5px solid var(--ink); border-radius: 12px; background: var(--paper-2); font-weight: 900; font-size: 14px; }
@@ -391,7 +403,22 @@ table.units th:first-child, table.units td:first-child { text-align: left; }
 .codex-cell canvas { width: 58px; height: 58px; display: block; margin: 0 auto; }
 .codex-cell.on { background: #fff3c4; box-shadow: 0 3px 0 var(--ink); }
 .codex-cell.locked { background: var(--paper-2); color: var(--ink-soft); }
-.relic-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.sticker-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.sticker-option img { width: 58px; height: 58px; transform: rotate(-4deg); }
+/* 选贴纸、翻贴纸包、换下一张。 */
+.pick.sticker-pick img { width: 96px; height: 96px; transform: rotate(-4deg); }
+.pick.tier-rare { background: linear-gradient(#fffbe8, #ffefc0); }
+.pick.tier-legend { background: linear-gradient(#fff6d6, #ffd7a3); box-shadow: 0 5px 0 var(--ink), 0 0 0 4px #ffd23f, 0 0 22px 6px rgba(255, 190, 0, .5); }
+.pick.tier-legend .kind { color: #c2410c; }
+.pack-reveal .pick { animation: flipin .55s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(var(--i) * .3s + .1s); }
+@keyframes flipin { 0% { transform: perspective(700px) rotateY(110deg) scale(.85); opacity: 0; } 55% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+.sticker-swap { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sticker-swap .pick { padding: 10px 6px 8px; gap: 3px; animation: none; }
+.sticker-swap .pick img { width: 60px; height: 60px; }
+.sticker-swap .pick b { font-size: 14px; }
+.sticker-swap .pick small { display: none; }
+.sticker-swap .pick .price img { width: 20px; height: 20px; }
+.pick.unopened { background: linear-gradient(#fff6d6, #ffe39a); }
 .profile { margin-top: 12px; display: grid; gap: 10px; }
 .profile .head { display: flex; gap: 12px; align-items: center; }
 .profile .head > canvas { width: 110px; height: 110px; flex: none; }
@@ -532,8 +559,9 @@ div.pick.up:hover { box-shadow: 0 5px 0 var(--gold-deep); }
 #b-lesson b { display: block; font-size: 22px; font-weight: 900; }
 #b-lesson p { margin-top: 4px; font-size: 14px; font-weight: 800; color: var(--ink-soft); line-height: 1.45; }
 #b-help { font-size: 22px; font-weight: 900; }
-.b-status .relic.mini { width: 34px; height: 34px; border-radius: 9px; background: #fff7dc; }
-.b-status .relic.mini img { width: 28px; height: 28px; }
+.b-status .sticker.mini { width: 36px; height: 36px; }
+.b-status .sticker.pop { animation: stickerpop .55s cubic-bezier(.2, .9, .3, 1.5); }
+@keyframes stickerpop { 30% { transform: rotate(-14deg) scale(1.6); } }
 #screen-battle.lesson-route #b-inkpill, #screen-battle.lesson-route #b-start, #screen-battle.lesson-route .b-edit { display: none; }
 .help { display: grid; gap: 12px; }
 .help-row b { display: block; font-size: 15px; font-weight: 900; }

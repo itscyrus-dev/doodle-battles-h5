@@ -8,7 +8,7 @@ import { loadSave, writeSave, normalizeSave, campaignSummary, chapterSummary, SA
 import { SKINS, ACHIEVEMENTS, REWARDS, ensureDaily, buySkin, equipSkin, claimAchievements } from './meta.mjs';
 import { SPOTLIGHTS } from './first-session.mjs';
 import { PlaytestLog, PLAYTEST_VERSION } from './playtest.mjs';
-import { RELICS, RELIC_ORDER } from './relics.mjs';
+import { STICKERS, STICKER_ORDER } from './stickers.mjs';
 import { nodeOf, deckTypes } from './run.mjs';
 import { $, $$, esc, icon, img, starsMarkup, toast, openSheet, closeSheet, initOverlay, initTips, canVibrate, setHaptics, buzz, tipAttrs } from './ui.mjs';
 import { createBattle } from './battle.mjs';
@@ -161,7 +161,7 @@ function renderLevel(i) {
 function openCodex(tab = 'units', chosen = null) {
   const s = app.save, unlocked = s.unlocked, met = deckTypes(s.run), seen = type => unitUnlocked(type, unlocked) || met.includes(type) || s.usedUnits[type];
   const stat = (label, value, max) => `<div><span>${esc(label)}</span><i><em style="width:${Math.min(100, value / max * 100)}%"></em></i><span>${value}</span></div>`;
-  let body = `<div class="tabs">${['units', 'items', 'relics'].map(id => `<button data-tab="${id}" class="${tab === id ? 'on' : ''}">${esc(t(`codex.${id}`))}</button>`).join('')}</div>`;
+  let body = `<div class="tabs">${['units', 'items', 'stickers'].map(id => `<button data-tab="${id}" class="${tab === id ? 'on' : ''}">${esc(t(`codex.${id}`))}</button>`).join('')}</div>`;
   if (tab === 'units') {
     const type = chosen || UNIT_ORDER.filter(seen).at(-1) || 'knight', d = TYPES[type], open = seen(type);
     body += `<div class="codex-grid">${UNIT_ORDER.map(u => `<button class="codex-cell ${u === type ? 'on' : ''} ${seen(u) ? '' : 'locked'}" data-unit="${u}"><canvas width="116" height="116"></canvas>${esc(seen(u) ? unitName(u) : '???')}</button>`).join('')}</div>
@@ -172,7 +172,7 @@ function openCodex(tab = 'units', chosen = null) {
   } else if (tab === 'items') {
     body += `<div class="options">${ITEM_ORDER.map(id => { const open = itemUnlocked(id, unlocked) || s.usedItems[id]; return `<div class="option ${open ? '' : 'locked'}">${img(`icons/item-${id}.webp`)}<span><b>${esc(itemName(id))}</b><small>${esc(open ? t(`item.${id}.desc`) : t('item.unlockAt', { n: ITEMS[id].unlock }))}</small></span></div>`; }).join('')}</div>`;
   } else {
-    body += `<p class="muted">${esc(t('codex.relicsNote'))}</p><div class="relic-grid" style="margin-top:10px">${RELIC_ORDER.map(id => `<div class="option">${img(`icons/relic-${id}.webp`)}<span><b>${esc(t(`relic.${id}`))} <span class="chip ${RELICS[id].tier === 'rare' ? 'gold' : ''}">${esc(t(`relic.${RELICS[id].tier}`))}</span></b><small>${esc(t(`relic.${id}.desc`))}</small></span></div>`).join('')}</div>`;
+    body += `<p class="muted">${esc(t('codex.stickersNote'))}</p><div class="sticker-grid" style="margin-top:10px">${STICKER_ORDER.map(id => `<div class="option sticker-option tier-${STICKERS[id].tier}">${img(`icons/sticker-${id}.webp`)}<span><b>${esc(t(`sticker.${id}`))} <span class="chip ${STICKERS[id].tier === 'common' ? '' : 'gold'}">${esc(t(`sticker.tier.${STICKERS[id].tier}`))}</span></b><small>${esc(t(`sticker.${id}.desc`))}</small></span></div>`).join('')}</div>`;
   }
   const sheet = openSheet({ title: esc(t('codex.title')), className: 'full wide', body });
   for (const b of $$('[data-tab]', sheet)) b.onclick = () => openCodex(b.dataset.tab);
