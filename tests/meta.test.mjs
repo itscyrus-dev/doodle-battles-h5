@@ -11,14 +11,14 @@ import { SOLUTIONS } from '../src/solutions.mjs';
 const solutions = JSON.parse(readFileSync(new URL('./fixtures/level-solutions.json', import.meta.url), 'utf8'));
 const memory = (initial = {}) => { const data = { ...initial }; return { getItem: k => data[k] ?? null, setItem: (k, v) => { data[k] = v; }, removeItem: k => { delete data[k]; }, data }; };
 function win(level, plan = solutions[level].plan) { const g = new Battle(level); for (const u of plan) g.place(u.type, u.x, u.y); g.start(); for (let i = 0; i < 5000 && g.phase === 'battle'; i++) g.update(1 / 60); return g; }
-function lose(level) { const g = new Battle(level); g.place('knight', 260, 560); g.start(); for (let i = 0; i < 5000 && g.phase === 'battle'; i++) g.update(1 / 60); return g; }
+function lose(level) { const g = new Battle(level); g.place('knight', 110, 300); g.start(); for (let i = 0; i < 5000 && g.phase === 'battle'; i++) g.update(1 / 60); return g; }
 
 test('旧版存档可以迁移：关卡、星级和偏好保留，新字段取默认值', () => {
   const store = memory({ [LEGACY_KEY]: JSON.stringify({ unlocked: 3, stars: { 0: 3, 1: 2, 2: 1 }, sound: true, haptics: false, speed: 2, campaignSeen: true, item: 'smoke' }) });
   const { save, migrated } = loadSave(store);
   assert.equal(migrated, true); assert.equal(save.unlocked, 3); assert.equal(save.currentLevel, 3); assert.deepEqual(save.stars, { 0: 3, 1: 2, 2: 1 });
   assert.equal(save.settings.haptics, false); assert.equal(save.settings.speed, 2); assert.equal(save.settings.music, true); assert.equal(save.seenIntro, true); assert.equal(save.item, 'smoke');
-  assert.equal(save.coins, 0); assert.deepEqual(save.skins, ['blue']); assert.equal(save.v, 2);
+  assert.equal(save.coins, 0); assert.deepEqual(save.skins, ['blue']); assert.equal(save.v, 3);
   assert.deepEqual(campaignSummary(save), { completed: 3, stars: 6, maxStars: 120, total: 40 });
   assert.equal(writeSave(store, save), true); assert.equal(loadSave(store).migrated, false); assert.ok(store.data[SAVE_KEY]);
 });
@@ -59,7 +59,7 @@ test('通关会解锁兵种和道具；可选挑战只奖励一次；通关整�
 });
 
 test('沙盒战斗不给金币、不改进度，只计入成就', () => {
-  const s = normalizeSave(null), g = new Battle(0, true); g.place('giant', 260, 400, 0); g.place('knight', 260, 200, 1); g.start(); for (let i = 0; i < 3000 && g.phase === 'battle'; i++) g.update(1 / 60);
+  const s = normalizeSave(null), g = new Battle(0, true); g.place('giant', 270, 300, 0); g.place('knight', 470, 300, 1); g.start(); for (let i = 0; i < 3000 && g.phase === 'battle'; i++) g.update(1 / 60);
   const r = recordBattle(s, g); assert.equal(g.phase, 'won'); assert.equal(r.coins, 0); assert.deepEqual(s.stars, {}); assert.equal(s.unlocked, 0);
   assert.equal(s.counters.sandbox, 1); assert.ok(r.achievements.some(a => a.id === 'sandbox')); assert.equal(s.counters.wins, 0);
 });

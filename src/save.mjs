@@ -1,7 +1,13 @@
-// 本机存档（第 2 版）：只接受已知字段并逐项校验，坏数据不会破坏进度；兼容旧版 doodle-battles-v1。
+// 本机存档（第 3 版）：只接受已知字段并逐项校验，坏数据不会破坏进度；兼容旧版 doodle-battles-v1。
+// 第 3 版起战场改为左右对战：旧版（竖版）存下的阵容按同样的旋转换算成横版坐标。
 import { LEVELS, ITEMS, UNIT_ORDER, LEVELS_PER_CHAPTER, CHAPTERS, itemUnlocked } from './data.mjs';
 import { validateDraft } from './drafts.mjs';
 import { SKINS, ACHIEVEMENTS } from './meta.mjs';
+import { normalizeRun } from './run.mjs';
+
+export const SAVE_VERSION = 3;
+// 竖版坐标（x 横向、y 纵深）换成横版：x' = 670 - y，y' = x + 40。与关卡数据的换算一致。
+export const fromPortrait = u => ({ ...u, x: 670 - u.y, y: u.x + 40 });
 
 export const SAVE_KEY = 'draw-clash-save-v2', LEGACY_KEY = 'doodle-battles-v1';
 const validLevel = n => Number.isInteger(n) && n >= 0 && n < LEVELS.length;
@@ -15,9 +21,10 @@ export function normalizeSave(raw) {
   for (let i = 0; i < LEVELS.length; i++) { const n = s.stars?.[i]; if (Number.isInteger(n) && n >= 1 && n <= 3) stars[i] = n; }
   const earned = Math.max(0, ...Object.keys(stars).map(i => Math.min(LEVELS.length - 1, +i + 1)));
   const unlocked = Math.max(validLevel(s.unlocked) ? s.unlocked : 0, earned);
-  const formations = {}, guides = {}, medals = {}, lessonActions = {}, hints = {};
+  const formations = {}, guides = {}, medals = {}, lessonActions = {}, hints = {}, portrait = s.v !== SAVE_VERSION;
   for (let i = 0; i < LEVELS.length; i++) {
-    if (i <= unlocked && s.formations?.[i]) { const draft = validateDraft(i, s.formations[i]); if (draft) formations[i] = draft; }
+    const raw = s.formations?.[i];
+    if (i <= unlocked && Array.isArray(raw)) { const draft = validateDraft(i, portrait ? raw.map(u => (u && typeof u === 'object' ? fromPortrait(u) : u)) : raw); if (draft) formations[i] = draft; }
     if (s.lessonActions?.[i]) lessonActions[i] = flags(s.lessonActions[i], ['moved', 'inspected', 'itemChosen']);
     if (s.guides?.[i] === true) guides[i] = true;
     if (s.medals?.[i] === true) medals[i] = true;
@@ -27,8 +34,9 @@ export function normalizeSave(raw) {
   const settings = s.settings && typeof s.settings === 'object' ? s.settings : {};
   const daily = s.daily && typeof s.daily === 'object' ? s.daily : {};
   const counters = s.counters && typeof s.counters === 'object' ? s.counters : {};
+  const runStats = s.runStats && typeof s.runStats === 'object' ? s.runStats : {};
   return {
-    v: 2, unlocked, stars, formations, guides, medals, lessonActions, hints,
+    v: SAVE_VERSION, unlocked, stars, formations, guides, medals, lessonActions, hints,
     item: typeof s.item === 'string' && Object.hasOwn(ITEMS, s.item) && itemUnlocked(s.item, unlocked) ? s.item : 'heal',
     currentLevel: validLevel(s.currentLevel) && s.currentLevel <= unlocked ? s.currentLevel : unlocked,
     seenIntro: s.seenIntro === true || s.campaignSeen === true,
@@ -38,6 +46,9 @@ export function normalizeSave(raw) {
     counters: { battles: count(counters.battles), wins: count(counters.wins), kills: count(counters.kills), flawless: count(counters.flawless), small: count(counters.small), fast: count(counters.fast), sandbox: count(counters.sandbox), hints: count(counters.hints) },
     usedUnits: flags(s.usedUnits, UNIT_ORDER),
     usedItems: flags(s.usedItems, Object.keys(ITEMS)),
+    tips: flags(s.tips, ['runroute', 'howto']),
+    run: normalizeRun(s.run),
+    runStats: { runs: count(runStats.runs), wins: count(runStats.wins), bosses: count(runStats.bosses), bestAct: count(runStats.bestAct, 3), bestWins: count(runStats.bestWins, 999) },
     settings: {
       lang: ['zh', 'en'].includes(settings.lang) ? settings.lang : null,
       music: settings.music !== false, sfx: settings.sfx !== false,

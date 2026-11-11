@@ -1,13 +1,12 @@
 // 战场绘制：背景、障碍、角色贴图动画、弹道和特效。只读取模拟状态，不修改它。
-import { W, H, TYPES, starsFor } from './data.mjs';
+import { W, H, TYPES, ZONE, starsFor } from './data.mjs';
 import { formationPreview } from './tactical-preview.mjs';
 import { image, drawUnitImage, UNIT_HEIGHT, PALETTES } from './assets.mjs';
 
 const INK = '#22304a';
 const FONT = 'ui-rounded,"SF Pro Rounded","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif';
 const TAU = Math.PI * 2;
-// 背景图按“宽 520、高 780 的逻辑范围”铺在战场中心：上下多出来的部分正好是两边的营帐。
-const FIELD_ART_HEIGHT = 780;
+const BLUE_INK = '#3f63c7', RED_INK = '#d2543f';
 
 function ellipse(c, x, y, rx, ry, color) { c.fillStyle = color; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fill(); }
 function line(c, x, y, a, b, color = INK, width = 2) { c.strokeStyle = color; c.lineWidth = width; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); c.moveTo(x, y); c.lineTo(a, b); c.stroke(); }
@@ -119,6 +118,13 @@ function drawEffect(c, f, renderer) {
       if (!release) { c.fillStyle = block ? '#d9f1ff' : '#fff2a8'; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); for (const [x, y] of [[-8, -3], [-4, -13], [0, -5], [9, -9], [5, 0], [13, 5], [3, 5], [0, 13], [-3, 5], [-12, 5]]) c.lineTo(x * (1 + p * .4), y * (1 + p * .4)); c.closePath(); c.fill(); c.stroke(); }
       for (let i = 0; i < (release ? 3 : 6); i++) { const a = i * 2.4, r = 6 + p * (release ? 11 : 26), x = Math.cos(a) * r, y = Math.sin(a) * r; line(c, x, y, x + Math.cos(a) * 5, y + Math.sin(a) * 5, block ? '#bfe3f5' : '#ffc95e', 2.4 * (1 - p) + .5); }
     }
+  } else if (f.kind === 'flank') {
+    label(c, renderer.words.flank || 'FLANK!', 0, -34 - p * 18, 15, '#ffe08a', { width: 4 });
+    if (!reduced) { c.rotate(f.angle || 0); for (let i = -1; i <= 1; i++) line(c, -24 - p * 12, i * 8, 6 - p * 6, i * 8, '#fff6d6', 3 * (1 - p) + .5); }
+  } else if (f.kind === 'primed') {
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, r = 8 + p * 26; line(c, Math.cos(a) * r * .5, Math.sin(a) * r * .5, Math.cos(a) * r, Math.sin(a) * r, '#ffd84a', 3.5 * (1 - p) + .5); }
+  } else if (f.kind === 'arrive') {
+    ring(c, 0, 2, 10 + p * 18, (10 + p * 18) * .4, f.primed ? '#ffd84a' : '#ffffff', 3 * (1 - p) + .5);
   } else if (!reduced && f.kind === 'dust') ellipse(c, 0, 0, 3 + p * 7, 2 + p * 3, 'rgba(240,230,200,.6)');
   c.restore();
 }
@@ -148,30 +154,36 @@ export class Renderer {
   kick(amount) { if (!this.reduced) this.shake = Math.min(10, (this.shake || 0) + amount); }
 
   // 静态背景只在尺寸、主题变化或图片到位时画一次，之后每帧直接贴图。
+  // 横版背景：两侧营帐分别在战场左右边缘外。横版图还没到位时，把竖版图转 90° 顶上。
   field() {
-    const art = image(`bg/field-${this.theme}.webp`);
-    if (this.fieldCache && this.fieldCache.hasArt === !!art) return this.fieldCache.canvas;
+    const wide = image(`bg/field-${this.theme}-wide.webp`), tall = wide ? null : image(`bg/field-${this.theme}.webp`), art = wide || tall;
+    if (this.fieldCache && this.fieldCache.art === art) return this.fieldCache.canvas;
     if (!this.canvas.width || !this.canvas.height) return null;
     const k = document.createElement('canvas'); k.width = this.canvas.width; k.height = this.canvas.height;
     const c = k.getContext('2d');
     c.fillStyle = { meadow: '#a9d36a', canyon: '#f0c98a', snow: '#e4f0f8', citadel: '#d8c9a2' }[this.theme] || '#a9d36a'; c.fillRect(0, 0, k.width, k.height);
     if (art) {
-      const zoom = Math.max(1, k.width / (W * this.scale), k.height / (FIELD_ART_HEIGHT * this.scale));
-      const w = W * this.scale * zoom, h = FIELD_ART_HEIGHT * this.scale * zoom;
+      // 图的长边对着战场的长边；按“盖满画布，且战场两侧再多留 8% 给营帐”的比例铺。
+      const aw = wide ? art.naturalWidth : art.naturalHeight, ah = wide ? art.naturalHeight : art.naturalWidth;
+      const zoom = Math.max(k.width / aw, k.height / ah, W * this.scale * 1.16 / aw);
+      const w = aw * zoom, h = ah * zoom;
       c.imageSmoothingQuality = 'high';
-      c.drawImage(art, (k.width - w) / 2, this.oy + H * this.scale / 2 - h / 2, w, h);
+      c.save(); c.translate(this.ox + W * this.scale / 2, this.oy + H * this.scale / 2);
+      if (!wide) c.rotate(Math.PI / 2);
+      c.drawImage(art, -(wide ? w : h) / 2, -(wide ? h : w) / 2, wide ? w : h, wide ? h : w);
+      c.restore();
     }
     const shade = c.createRadialGradient(k.width / 2, k.height / 2, Math.min(k.width, k.height) * .45, k.width / 2, k.height / 2, Math.max(k.width, k.height) * .8);
     shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(20,40,30,.22)'); c.fillStyle = shade; c.fillRect(0, 0, k.width, k.height);
-    this.fieldCache = { canvas: k, hasArt: !!art };
+    this.fieldCache = { canvas: k, art };
     return k;
   }
 
   inspect(g) {
     if (g.phase !== 'build' || this.drag?.recycle || this.drag?.valid === false) return null;
-    const u = this.drag ? { ...this.drag.unit, type: this.drag.type, team: this.drag.team, x: this.drag.x, y: this.drag.y } : g.plan.find(u => u.pid === this.selectedPid);
+    const u = this.drag ? { ...this.drag.unit, type: this.drag.type, team: this.drag.team, x: this.drag.x, y: this.drag.y, route: this.drag.unit?.route?.map(p => ({ x: p.x + this.drag.x - this.drag.unit.x, y: p.y + this.drag.y - this.drag.unit.y })) } : g.plan.find(u => u.pid === (this.hoverPid ?? this.selectedPid));
     if (!u) return null;
-    const key = JSON.stringify([u.type, u.team, u.x, u.y, g.plan.map(v => [v.type, v.team, v.x, v.y]), g.level, g.sandbox]);
+    const key = JSON.stringify([u.type, u.team, u.x, u.y, u.route, u.hold, g.plan.map(v => [v.type, v.team, v.x, v.y]), g.level, g.sandbox]);
     if (key !== this.previewKey) { this.previewKey = key; this.preview = formationPreview(g, u); }
     return this.preview;
   }
@@ -195,10 +207,9 @@ export class Renderer {
     c.restore();
   }
 
-  // 朝向：战场是上下对战，所以每个角色有正面和背面两张图。
-  // 瞄准方向朝上用背面、朝下用正面；左右决定是否水平翻转。接近水平或垂直时保持原样，避免来回抖动。
-  // 还没有瞄准目标时：我方背对镜头朝上，敌方面向镜头朝下；左右两翼都朝向战场中线。
-  defaultPose(u) { return { flip: u.x <= W / 2 ? 1 : -1, back: u.team === 0 }; }
+  // 朝向：每个角色有正面和背面两张图。瞄准方向朝上用背面、朝下用正面；左右决定是否水平翻转。
+  // 接近水平或垂直时保持原样，避免来回抖动。还没有瞄准目标时：我方朝右、敌方朝左，都用正面。
+  defaultPose(u) { return { flip: u.team === 0 ? 1 : -1, back: false }; }
   pose(u, build) {
     if (build || u.id === undefined || u.angle === undefined) return this.defaultPose(u);
     let pose = this.faces.get(u.id);
@@ -273,8 +284,66 @@ export class Renderer {
     }
   }
 
+  // ---------- 行军路线、驻守、圈选 ----------
+  // 布阵时画出每名士兵的路线（敌人的路线用红色）；战斗中只淡淡地画出还没走完的部分。
+  drawRoutes(c, g, build, t) {
+    const list = build ? [...g.plan, ...(g.sandbox ? [] : g.enemy)] : g.units.filter(u => u.hp > 0 && u.route && u.leg < u.route.length);
+    for (const u of list) {
+      const route = build ? u.route : u.route?.slice(u.leg);
+      const mine = u.team === 0, focus = build && (this.selection?.has(u.pid) || this.hoverPid === u.pid);
+      if (route?.length) {
+        const pts = [{ x: u.x, y: u.y }, ...route], color = mine ? BLUE_INK : RED_INK;
+        c.save(); c.globalAlpha = build ? (focus ? 1 : mine ? .85 : .75) : .35; c.lineCap = 'round'; c.lineJoin = 'round';
+        c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+        c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = focus ? 8 : 6.5; c.stroke();
+        c.setLineDash(mine ? [12, 7] : [7, 7]); c.lineDashOffset = this.reduced ? 0 : -t * 22;
+        c.strokeStyle = color; c.lineWidth = focus ? 4 : 3; c.stroke(); c.setLineDash([]);
+        const a = pts.at(-2), b = pts.at(-1), ang = Math.atan2(b.y - a.y, b.x - a.x);
+        c.translate(b.x, b.y); c.rotate(ang); c.fillStyle = color; c.strokeStyle = '#fff'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(9, 0); c.lineTo(-7, -7); c.lineTo(-4, 0); c.lineTo(-7, 7); c.closePath(); c.stroke(); c.fill();
+        c.restore();
+      }
+    }
+  }
+  // 驻守小旗：画在士兵之后，免得被身体挡住；有路线时插在路线终点。
+  drawHoldFlags(c, g, build) {
+    const list = build ? [...g.plan, ...(g.sandbox ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
+    for (const u of list) if (u.hold) {
+      const ahead = u.route?.length && (build || u.leg < u.route.length), end = ahead ? u.route.at(-1) : null;
+      this.drawFlag(c, end ? end.x : u.x - 17, end ? end.y + 2 : u.y + 2, u.team === 0 ? '#ffd84a' : RED_INK);
+    }
+  }
+  drawFlag(c, x, y, color) {
+    c.save(); c.translate(x, y);
+    line(c, 0, 0, 0, -26, INK, 4); line(c, 0, 0, 0, -26, '#fff8e7', 1.6);
+    c.beginPath(); c.moveTo(1, -26); c.lineTo(18, -20); c.lineTo(1, -13); c.closePath(); c.fillStyle = color; c.strokeStyle = INK; c.lineWidth = 2.2; c.fill(); c.stroke();
+    ellipse(c, 0, 1, 6, 2.4, 'rgba(25,40,55,.3)');
+    c.restore();
+  }
+  // 正在画的路线或圈选。
+  drawSketch(c, t) {
+    const s = this.sketch; if (!s || s.points.length < 2) return;
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); s.points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+    if (s.kind === 'lasso') {
+      c.closePath(); c.fillStyle = 'rgba(255,216,74,.18)'; c.fill();
+      c.setLineDash([8, 6]); c.lineDashOffset = this.reduced ? 0 : -t * 30; c.strokeStyle = INK; c.lineWidth = 3; c.stroke();
+    } else {
+      c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = 9; c.stroke();
+      c.strokeStyle = s.valid === false ? '#c8402c' : BLUE_INK; c.lineWidth = 4.5; c.stroke();
+    }
+    c.restore();
+  }
+  drawPuddle(c, p, time) {
+    const k = Math.min(1, (p.life - p.t) / .6, (p.life - p.t) / p.life * 4), wob = this.reduced ? 0 : Math.sin(time * 3 + p.x) * 1.5;
+    c.save(); c.globalAlpha = .55 * Math.max(0, Math.min(1, k));
+    ellipse(c, p.x, p.y, p.r + wob, p.r * .42, mix(BLUE_INK, INK, .5));
+    ellipse(c, p.x - p.r * .3, p.y - 2, p.r * .35, p.r * .12, 'rgba(255,255,255,.35)');
+    c.restore();
+  }
+
   drawUnit(c, u, time, build, g) {
-    const def = TYPES[u.type], height = UNIT_HEIGHT[u.type], palette = u.team === 0 ? this.skin : 'red', reduced = this.reduced;
+    const def = TYPES[u.type], height = UNIT_HEIGHT[u.type] * (u.boss?.size || 1), palette = u.team === 0 ? this.skin : 'red', reduced = this.reduced;
     const pose = this.pose(u, build), face = pose.flip;
     const ax = Math.cos(u.angle ?? 0), ay = Math.sin(u.angle ?? 0);
     const moving = u.moving || 0, walk = u.walk || 0;
@@ -303,12 +372,23 @@ export class Renderer {
     if (!build && u.team === 0 && g.effects.smoke > 0) { c.save(); c.globalAlpha = .4; for (let i = 0; i < 3; i++) ellipse(c, u.x + (reduced ? (i - 1) * 9 : Math.sin(time * 2 + i * 2 + u.id) * 13), u.y - height * .35 + i * 5, 17, 11, '#e9eef0'); c.restore(); }
     if (u.chill > 0 && !u.frozen && !reduced) for (let i = 0; i < 2; i++) { const a = time * 2 + i * 3 + (u.id || 0); label(c, '❄', u.x + Math.cos(a) * 14, u.y - height * .55 + Math.sin(a * 1.3) * 9, 10, '#e8f7ff', { stroke: '#4d93c9', width: 2 }); }
     if (u.threat > 0 && u.hp > 0) { const y = u.y - height - 16; pill(c, u.x - 9, y - 9, 18, 18, '#ff6b57', INK, 2); label(c, '!', u.x, y + .5, 13, '#fff', { stroke: null }); }
+    if (u.boss) this.drawCrown(c, u.x, u.y - height - (build || u.hp >= u.max ? 4 : 16), time);
+    if (u.team === 0 && this.elite?.has(u.type)) star(c, u.x + 13, u.y - 4, 6.5, '#ffd84a');
     if (!build && u.hp > 0 && u.hp < u.max) {
-      const w = u.type === 'giant' ? 46 : 32, y = u.y - height - 5;
+      const w = u.boss ? 70 : u.type === 'giant' ? 46 : 32, y = u.y - height - 5;
       pill(c, u.x - w / 2 - 1.5, y - 1.5, w + 3, 8, INK);
       pill(c, u.x - w / 2, y, w, 5, 'rgba(255,255,255,.25)');
       const fill = Math.max(0, u.hp / u.max); if (fill > .02) pill(c, u.x - w / 2, y, Math.max(5, w * fill), 5, fill < .3 ? '#ff7a5c' : teamColor(u.team, this.skin));
     }
+  }
+
+  drawCrown(c, x, y, time) {
+    const bob = this.reduced ? 0 : Math.sin(time * 3) * 1.5;
+    c.save(); c.translate(x, y - 6 + bob);
+    c.beginPath(); c.moveTo(-13, 6); c.lineTo(-15, -7); c.lineTo(-7, -1); c.lineTo(0, -11); c.lineTo(7, -1); c.lineTo(15, -7); c.lineTo(13, 6); c.closePath();
+    c.fillStyle = '#ffd84a'; c.strokeStyle = INK; c.lineWidth = 2.5; c.lineJoin = 'round'; c.fill(); c.stroke();
+    ellipse(c, 0, 1, 2.6, 2.6, '#d2543f');
+    c.restore();
   }
 
   drawShot(c, s) {
@@ -356,17 +436,20 @@ export class Renderer {
     const time = g.phase === 'paused' ? g.elapsed : t;
 
     if (build) {
-      // 布阵区：己方半场提亮，分界线用墨水虚线。
-      const pulse = reduced ? .5 : .5 + Math.sin(t * 2.4) * .5;
-      c.fillStyle = `rgba(255,255,255,${.1 + pulse * .05})`; c.fillRect(-W, 322, W * 3, H);
-      c.fillStyle = 'rgba(210,84,63,.1)'; c.fillRect(-W, -H, W * 3, H + 298);
-      c.setLineDash([10, 9]); line(c, -W, 310, W * 2, 310, 'rgba(255,255,255,.9)', 3); c.setLineDash([]);
-      if (!g.plan.length && this.words.enemyZone) label(c, this.words.enemyZone, W / 2, 292, 12, '#fff', { stroke: 'rgba(170,60,45,.9)', width: 3.5 });
-      if (!g.plan.length && this.words.yourZone) label(c, this.words.yourZone, W / 2, 329, 12, '#fff', { stroke: 'rgba(40,70,140,.9)', width: 3.5 });
+      // 布阵区：己方半场（左）提亮，敌方半场（右）略带红色，分界线用墨水虚线。
+      const pulse = reduced ? .5 : .5 + Math.sin(t * 2.4) * .5, mid = (ZONE.blue + ZONE.red) / 2;
+      c.fillStyle = `rgba(255,255,255,${.1 + pulse * .05})`; c.fillRect(-W, -H, W + ZONE.blue + 12, H * 3);
+      c.fillStyle = 'rgba(210,84,63,.1)'; c.fillRect(ZONE.red - 12, -H, W * 2, H * 3);
+      c.setLineDash([10, 9]); line(c, mid, -H, mid, H * 2, 'rgba(255,255,255,.9)', 3); c.setLineDash([]);
+      if (!g.plan.length && this.words.yourZone) label(c, this.words.yourZone, ZONE.blue / 2, 38, 13, '#fff', { stroke: 'rgba(40,70,140,.9)', width: 3.5 });
+      if (!g.plan.length && this.words.enemyZone) label(c, this.words.enemyZone, (ZONE.red + W) / 2, 38, 13, '#fff', { stroke: 'rgba(170,60,45,.9)', width: 3.5 });
     }
     for (const o of g.rocks) if (o.kind === 'pond') drawPond(c, o, time, reduced, this.theme);
     this.drawDecals(c);
+    for (const p of g.puddles || []) this.drawPuddle(c, p, time);
+    this.drawRoutes(c, g, build, t);
     if (build) this.drawInspection(c, this.inspect(g));
+    this.drawSketch(c, t);
 
     // 墨水笔迹：滑动画兵时留下的痕迹。
     if (this.inkTrail.length) {
@@ -376,6 +459,10 @@ export class Renderer {
     }
     if (this.drag && !this.drag.recycle) { const d = this.drag; c.save(); c.setLineDash([5, 5]); ellipse(c, d.x, d.y + 2, 24, 10, d.valid ? 'rgba(120,220,130,.4)' : 'rgba(255,107,87,.4)'); ring(c, d.x, d.y + 2, 24, 10, d.valid ? '#2f8f46' : '#c8402c', 2.5); c.restore(); }
 
+    if (build && this.selection?.size) for (const u of g.plan) if (this.selection.has(u.pid)) {
+      const r = (u.type === 'giant' ? 30 : 22) + (reduced ? 0 : Math.sin(t * 5) * 1.5);
+      ellipse(c, u.x, u.y + 2, r, r * .4, 'rgba(255,216,74,.35)'); c.setLineDash([6, 4]); ring(c, u.x, u.y + 2, r, r * .4, INK, 3.5); ring(c, u.x, u.y + 2, r, r * .4, '#ffd84a', 2); c.setLineDash([]);
+    }
     const units = build ? [...g.plan, ...(g.sandbox ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
     const drawables = [...units.map(u => ({ y: u.y, u })), ...g.rocks.filter(o => o.kind !== 'pond').map(o => ({ y: o.y + o.r * .3, o }))].sort((a, b) => a.y - b.y);
     for (const d of drawables) { if (d.o) drawRock(c, d.o, this.theme); else this.drawUnit(c, d.u, time, build, g); }
@@ -383,10 +470,11 @@ export class Renderer {
     if (build && !this.drag) for (const ghost of this.guideGhosts || []) {
       if (g.placementError(ghost.type, ghost.x, ghost.y, ghost.team)) continue;
       const bob = reduced ? 0 : Math.sin(t * 4) * 2;
-      c.save(); c.globalAlpha = .5; drawUnitImage(c, ghost.type, this.skin, ghost.x, ghost.y + 3 - bob, UNIT_HEIGHT[ghost.type], { back: true }); c.restore();
+      c.save(); c.globalAlpha = .5; drawUnitImage(c, ghost.type, this.skin, ghost.x, ghost.y + 3 - bob, UNIT_HEIGHT[ghost.type]); c.restore();
       c.setLineDash([5, 5]); ring(c, ghost.x, ghost.y + 2, 22, 8, INK, 4); ring(c, ghost.x, ghost.y + 2, 22, 8, '#ffe08a', 2); c.setLineDash([]);
       label(c, this.unitName(ghost.type), ghost.x, ghost.y + 20, 11, '#fff', { width: 3 });
     }
+    this.drawHoldFlags(c, g, build);
     for (const s of g.shots) this.drawShot(c, s);
     for (const f of g.fx) drawEffect(c, f, this);
     this.drawParticles(c);

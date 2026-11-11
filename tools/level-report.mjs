@@ -35,8 +35,10 @@ function pickType(level, g, rand) {
 }
 // 七成按常识站位（近战在前、远程和辅助在后），三成完全随手。
 function spot(type, rand) {
+  // 横向战场：lateral 是上下位置，depth 是离分界线的远近（数值越大越靠后）。
   const sensible = rand() < .7, back = !!TYPES[type].backline;
-  return { x: Math.round(30 + rand() * 460), y: Math.round(sensible ? (back ? 440 + rand() * 140 : 340 + rand() * 90) : 340 + rand() * 240) };
+  const lateral = 70 + rand() * 460, depth = sensible ? (back ? 440 + rand() * 140 : 340 + rand() * 90) : 340 + rand() * 240;
+  return { x: Math.round(670 - depth), y: Math.round(lateral) };
 }
 function randomPlan(level, rand) {
   const g = new Battle(level);
@@ -58,7 +60,7 @@ const score = r => !r ? -1 : r.won ? 100 + r.stars * 30 + r.survivors * 2 - r.ti
 function mutate(level, plan, rand) {
   const g = new Battle(level); for (const u of plan) g.place(u.type, u.x, u.y);
   const units = g.plan, r = rand(), u = units[Math.floor(rand() * units.length)];
-  if (u && r < .4) g.move(u.pid, Math.round(clamp(u.x + (rand() - .5) * 140, 25, 495)), Math.round(clamp(u.y + (rand() - .5) * 120, 335, 585)));
+  if (u && r < .4) { const lateral = (rand() - .5) * 140, depth = (rand() - .5) * 120; g.move(u.pid, Math.round(clamp(u.x - depth, 25, 335)), Math.round(clamp(u.y + lateral, 65, 535))); }
   else if (u && r < .7) { const { x, y } = u; g.remove(u.pid); const t = pickType(level, g, rand); if (t) g.place(t, x, y); }
   else if (u && r < .85) g.remove(u.pid);
   else { const t = pickType(level, g, rand); if (t) { const p = spot(t, rand); g.place(t, p.x, p.y); } }

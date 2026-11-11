@@ -22,8 +22,8 @@ export function guideStep(g, flags = {}) {
   if (g.phase !== 'build' || g.sandbox) return null;
   const front = g.plan.filter(u => u.team === 0 && !TYPES[u.type].backline), archers = g.count('archer');
   if (g.level === 0) {
-    if (front.length < 2) return step('front', 'roster', [ghost('guard', 130, 365), ghost('guard', 260, 365)]);
-    if (archers < 2) return step('rear', 'roster', [ghost('archer', 110, 490), ghost('archer', 250, 490)]);
+    if (front.length < 2) return step('front', 'roster', [ghost('guard', 305, 170), ghost('guard', 305, 300)]);
+    if (archers < 2) return step('rear', 'roster', [ghost('archer', 180, 150), ghost('archer', 180, 290)]);
     if (!flags.moved) return step('move', 'arena');
     return step('start', 'start');
   }
@@ -33,15 +33,15 @@ export function guideStep(g, flags = {}) {
     return step('wall', 'start');
   }
   if (g.level === 2) {
-    if (!g.count('bomber')) return step('blast', 'roster', [ghost('bomber', 250, 500)]);
+    if (!g.count('bomber')) return step('blast', 'roster', [ghost('bomber', 170, 290)]);
     if (!flags.itemChosen) return step('item', 'item');
     return step('area', 'start');
   }
   if (g.level === 5 && !flags.inspected) return step('cover', 'arena');
-  if (g.level === 10 && !g.count('lancer')) return step('lancer', 'roster', [ghost('lancer', 90, 372)]);
+  if (g.level === 10 && !g.count('lancer')) return step('lancer', 'roster', [ghost('lancer', 298, 130)]);
   if (g.level === 12 && !flags.itemChosen) return step('thunder', 'item');
-  if (g.level === 15 && !g.count('healer')) return step('healer', 'roster', [ghost('healer', 260, 470)]);
-  if (g.level === 20 && !g.count('mage')) return step('mage', 'roster', [ghost('mage', 260, 480)]);
+  if (g.level === 15 && !g.count('healer')) return step('healer', 'roster', [ghost('healer', 200, 300)]);
+  if (g.level === 20 && !g.count('mage')) return step('mage', 'roster', [ghost('mage', 190, 300)]);
   if (g.level === 22 && !flags.itemChosen) return step('frost', 'item');
   return null;
 }

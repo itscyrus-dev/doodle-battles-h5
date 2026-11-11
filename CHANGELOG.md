@@ -2,6 +2,30 @@
 
 版本号写在 `release.json`。合并到 `main` 后，GitHub Actions 会把这里对应版本的小节用作 Release 说明，所以每次改版本号都要在最上面加一节。
 
+## 0.10.0
+
+*2026-11-11*
+
+A PC prototype built around drawing the plan, not just the squad: march routes, a roguelike Expedition mode, and a landscape interface for mouse and keyboard.
+
+- **Draw march routes.** Right-drag from a unit to give it a route. It marches along the line, stops to fight anything in reach, then hunts as usual. Circle a group with the route pen and one line moves them in formation; press H to make units hold their ground.
+- **Expedition mode (roguelike).** Three acts of branching maps with battles, elites, bosses, events, a quartermaster, campfires and treasure. Pick a warband, collect new units, elite upgrades, ink and items, and 14 relics that change the rules. Three hearts: lose a fight and you can retry it; run out and the expedition ends.
+- **Enemies have plans too.** Flanking routes are shown as red dashed lines and holding units carry red flags.
+- **Landscape PC interface.** A 1280×720 stage that scales with the window, a three-column campaign map, a battle screen with unit cards and pens on the left and intel, items and relics on the right, hover previews and keyboard shortcuts.
+- **Left-versus-right battlefield.** All 40 campaign levels were rotated; old saved formations convert automatically.
+- New landscape battlefields, home screen and expedition maps, plus map and relic icons.
+- Mobile portrait play is no longer supported; phones are asked to turn sideways.
+
+中文
+
+- **画行军路线。** 右键从士兵身上拖出一条线：开战后沿线行军，射程内有敌人才停下打，走完后照常寻敌。用路线笔圈住一群人，一笔路线他们会保持队形一起走；按 H 让士兵原地驻守。
+- **远征（肉鸽模式）。** 三章分岔地图，有遭遇战、精英、首领、奇遇、军需官、营火和宝箱。选编制开局，一路收集新兵种、精锐升级、墨水和道具，以及 14 件改变规则的遗物。3 颗心：输了可以重打，心用光远征结束。
+- **敌人也有计划。** 包抄路线用红色虚线画出，驻守的敌人插着红旗。
+- **电脑横屏界面。** 1280×720 舞台随窗口缩放；战役地图改为三栏；战斗界面左栏是兵种和三支笔，右栏是敌情、道具和遗物；悬停预览和键盘快捷键。
+- **战场改为左右对战。** 40 关整体旋转，旧存档里的阵容自动换算。
+- 新的横版战场、主页和远征地图，以及地图节点和遗物图标。
+- 不再支持手机竖屏，手机上会提示横过来。
+
 ## 0.9.0
 
 *2026-11-11*

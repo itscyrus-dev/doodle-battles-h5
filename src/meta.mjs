@@ -32,7 +32,9 @@ export const ACHIEVEMENTS = [
   { id: 'daily_3', reward: 80, goal: 3, progress: s => s.daily.streak },
   { id: 'daily_7', reward: 150, goal: 7, progress: s => s.daily.streak },
   { id: 'skins_3', reward: 50, goal: 3, progress: s => s.skins.length },
-  { id: 'sandbox', reward: 20, goal: 1, progress: s => s.counters.sandbox }
+  { id: 'sandbox', reward: 20, goal: 1, progress: s => s.counters.sandbox },
+  { id: 'run_boss', reward: 60, goal: 1, progress: s => s.runStats.bosses },
+  { id: 'run_win', reward: 200, goal: 1, progress: s => s.runStats.wins }
 ];
 // 发放新达成的成就奖励，返回这次新达成的成就。
 export function claimAchievements(save) {
@@ -94,6 +96,32 @@ export function recordBattle(save, g, { medal = false, today = todayString() } =
   save.coins += summary.coins;
   summary.achievements = claimAchievements(save);
   return summary;
+}
+
+// 远征里的一场战斗：只计入通用计数和成就，不涉及关卡星级和金币（远征有自己的金币）。
+export function recordRunBattle(save, g, kind = 'battle') {
+  const blue = g.units.filter(u => u.team === 0), won = g.phase === 'won';
+  save.counters.battles++;
+  for (const u of blue) save.usedUnits[u.type] = true;
+  if (g.itemUsed) save.usedItems[g.selectedItem] = true;
+  save.counters.kills += g.units.filter(u => u.team === 1 && u.hp <= 0).length;
+  if (won) {
+    save.counters.wins++;
+    if (blue.every(u => u.hp > 0)) save.counters.flawless++;
+    if (blue.length <= 3) save.counters.small++;
+    if (g.elapsed <= 10) save.counters.fast++;
+    if (kind === 'boss') save.runStats.bosses++;
+  }
+  return claimAchievements(save);
+}
+// 远征结束：带回的金币记进主线，更新远征纪录。
+export function recordRunEnd(save, run, payout) {
+  save.coins += payout;
+  save.runStats.runs++;
+  if (run.result === 'victory') save.runStats.wins++;
+  save.runStats.bestAct = Math.max(save.runStats.bestAct, run.act + 1);
+  save.runStats.bestWins = Math.max(save.runStats.bestWins, run.stats.wins);
+  return claimAchievements(save);
 }
 
 export function buySkin(save, id) {

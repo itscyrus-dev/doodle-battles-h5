@@ -1,11 +1,11 @@
 {
   "name": "Draw & Clash · 涂鸦小队",
   "short_name": "Draw & Clash",
-  "description": "Draw your squad, then watch it fight. A cozy tactics game with 40 hand-made levels.",
+  "description": "Draw your squad and its battle plan, then watch it fight. A roguelike tactics game for PC with an expedition mode and 40 hand-made campaign levels.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "landscape",
   "background_color": "#8fd0f5",
   "theme_color": "#22304a",
   "categories": ["games", "strategy"],

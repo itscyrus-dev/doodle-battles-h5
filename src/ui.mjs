@@ -24,7 +24,11 @@ const PATHS = {
   home: '<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   swords: '<path d="M5 4l10 10M4 4h3v3M15 14l-3 3M19 4L9 14M20 4h-3v3M9 14l3 3M5 18l2 2M19 18l-2 2"/>',
-  flag: '<path d="M6 21V4M6 5h11l-2.5 4L17 13H6"/>'
+  flag: '<path d="M6 21V4M6 5h11l-2.5 4L17 13H6"/>',
+  pen: '<path d="M4 20l4.5-1L19 8.5 15.5 5 5 15.5z"/><path d="M13.5 7l3.5 3.5"/>',
+  route: '<path d="M5 19c0-5 3-6.5 7-6.5s7-1.5 7-6.5"/><path d="M15 5.5L19 5l.5 4"/><circle cx="5" cy="19" r="1.6" fill="currentColor"/>',
+  expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/>'
 };
 export const icon = name => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] || ''}</svg>`;
 export const img = (path, className = '', alt = '') => `<img class="${className}" src="${assetUrl(path)}" alt="${esc(alt)}" draggable="false">`;
@@ -54,6 +58,7 @@ export function openSheet({ title = '', kicker = '', body = '', className = '', 
   return sheet;
 }
 export function closeSheet(silent = false) {
+  hideTip();
   if (!active) return;
   const { onClose } = active; active = null;
   const overlay = $('#overlay'); overlay.classList.remove('open'); overlay.hidden = true;
@@ -75,6 +80,26 @@ export function initOverlay() {
     }
   });
 }
+
+// 悬停提示：任何带 data-tip（说明）或 data-tip-title（标题）的元素，鼠标停留时在旁边显示。
+export function initTips() {
+  const box = $('#tooltip'), stage = $('#app');
+  const show = el => {
+    const title = el.dataset.tipTitle || '', body = el.dataset.tip || '';
+    if (!title && !body) return;
+    box.innerHTML = `${title ? `<b>${esc(title)}</b>` : ''}${esc(body)}`; box.hidden = false;
+    const s = stage.getBoundingClientRect(), k = s.width / 1280, r = el.getBoundingClientRect();
+    const w = box.offsetWidth, h = box.offsetHeight;
+    let x = (r.left - s.left) / k + r.width / k / 2 - w / 2, y = (r.top - s.top) / k - h - 10;
+    if (y < 6) y = (r.bottom - s.top) / k + 10;
+    box.style.left = `${Math.max(8, Math.min(1280 - w - 8, x))}px`; box.style.top = `${Math.max(6, Math.min(720 - h - 6, y))}px`;
+  };
+  document.addEventListener('pointerover', e => { const el = e.target.closest?.('[data-tip], [data-tip-title]'); if (el) show(el); });
+  document.addEventListener('pointerout', e => { const el = e.target.closest?.('[data-tip], [data-tip-title]'); if (el && !el.contains(e.relatedTarget)) box.hidden = true; });
+  document.addEventListener('pointerdown', () => { box.hidden = true; }, true);
+}
+export const hideTip = () => { const box = $('#tooltip'); if (box) box.hidden = true; };
+export const tipAttrs = (title, body = '') => `data-tip-title="${esc(title)}" data-tip="${esc(body)}"`;
 
 // 震动只在支持的浏览器生效（多数安卓可以，iPhone 浏览器不支持）。
 export const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
