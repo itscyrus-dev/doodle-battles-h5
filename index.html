@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#22304a">
-<meta name="description" content="Draw & Clash — draw your squad and its battle plan, then watch it fight. A roguelike tactics game for PC with an expedition mode and 40 hand-made campaign levels. 涂鸦小队：画出小队和行军路线，看他们自己打完这一仗。">
+<meta name="description" content="涂鸦小队：画出你的小队和行军路线，看他们开打。电脑版肉鸽战术游戏，有卡牌远征和 40 个手工关卡。">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Draw & Clash">
-<title>Draw &amp; Clash · 涂鸦小队</title>
+<meta name="apple-mobile-web-app-title" content="涂鸦小队">
+<title>涂鸦小队</title>
 <link rel="icon" type="image/png" href="assets/icon/favicon-64.png">
 <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -18,7 +18,7 @@
 <div id="backdrop" aria-hidden="true"></div>
 <main id="app">
   <section id="screen-boot" class="screen">
-    <img class="boot-logo" src="assets/ui/logo.webp" alt="Draw &amp; Clash" draggable="false">
+    <img class="boot-logo" src="assets/ui/logo.webp" alt="涂鸦小队" draggable="false">
     <div class="boot-bar" aria-hidden="true"><i id="boot-fill"></i></div>
     <p id="boot-status" role="status">Loading…</p>
     <button id="boot-retry" class="btn btn-gold" hidden>Reload</button>
@@ -45,6 +45,7 @@
       <aside class="b-left" id="b-left">
         <div class="tools" id="b-tools" role="toolbar"></div>
         <div id="roster" class="roster"></div>
+        <div class="handbar" id="b-handbar" hidden></div>
         <div class="b-edit">
           <button id="b-undo" class="ibtn"></button>
           <button id="b-clear" class="ibtn"></button>

@@ -20,15 +20,16 @@ function inside(poly, p) {
 
 export class FormationInput {
   // say(code, params) 负责把提示翻译成当前语言；onChange(event, team, detail) 通知界面刷新。
-  constructor({ canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say }) {
-    Object.assign(this, { canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say });
-    this.gesture = null; this.lastMessage = ''; this.lastMessageAt = 0; this.tool = 'deploy';
+  // 卡牌模式（远征）：armed 是选中的兵牌，点战场调用 onStamp 整队放下；空地上拖动变成圈选。
+  constructor({ canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp = null }) {
+    Object.assign(this, { canvas, roster, recycle, renderer, getGame, getSelection, select, onChange, say, onStamp });
+    this.gesture = null; this.lastMessage = ''; this.lastMessageAt = 0; this.tool = 'deploy'; this.armed = null;
     this.selection = new Set(); renderer.selection = this.selection;
     this.ghost = document.createElement('canvas'); this.ghost.width = 192; this.ghost.height = 192;
     this.ghost.className = 'drag-ghost'; this.ghost.hidden = true; this.ghost.setAttribute('aria-hidden', 'true'); document.body.append(this.ghost);
     canvas.addEventListener('pointerdown', e => this.down(e, null, canvas));
     canvas.addEventListener('pointermove', e => { if (!this.gesture) this.hover(e); });
-    canvas.addEventListener('pointerleave', () => { if (!this.gesture) { this.renderer.hoverPid = null; this.canvas.classList.remove('over-unit'); this.onChange('hover'); } });
+    canvas.addEventListener('pointerleave', () => { if (!this.gesture) { this.renderer.hoverPid = null; this.renderer.stamp = null; this.canvas.classList.remove('over-unit'); this.onChange('hover'); } });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     const lost = e => { if (this.gesture?.pointer === e.pointerId) this.cancel(); };
     canvas.addEventListener('lostpointercapture', lost);
@@ -54,8 +55,17 @@ export class FormationInput {
   errorParams(code, type) { return code === 'type-full' ? { type, n: this.getGame().limit(type) } : {}; }
   prune() { const g = this.getGame(); for (const pid of [...this.selection]) if (!g.plan.some(u => u.pid === pid)) this.selection.delete(pid); }
   setSelection(pids) { this.selection.clear(); for (const pid of pids) this.selection.add(pid); this.onChange('select'); }
+  // 选中兵牌时，鼠标处预览整队会站在哪里。
+  arm(card) { this.armed = card; this.renderer.stamp = null; this.canvas.classList.toggle('stamping', !!card); }
+  preview(p) {
+    const g = this.getGame(), c = this.armed;
+    if (!c || g.phase !== 'build') { this.renderer.stamp = null; return; }
+    const spots = g.squadSpots(c.type, c.n, Math.round(p.x), Math.round(p.y));
+    this.renderer.stamp = { type: c.type, x: p.x, y: p.y, spots: spots || [{ x: p.x, y: p.y }], valid: !!spots && g.remaining >= c.ink };
+  }
   hover(e) {
-    const g = this.getGame(); if (g.phase !== 'build') { this.renderer.hoverPid = null; return; }
+    const g = this.getGame(); if (g.phase !== 'build') { this.renderer.hoverPid = null; this.renderer.stamp = null; return; }
+    if (this.armed) { this.preview(this.renderer.point(e)); this.canvas.classList.remove('over-unit'); return; }
     const unit = this.pick(this.renderer.point(e)), pid = unit?.pid ?? null;
     this.canvas.classList.toggle('over-unit', !!unit && this.tool === 'deploy');
     if (pid !== this.renderer.hoverPid) { this.renderer.hoverPid = pid; this.onChange('hover'); }
@@ -64,13 +74,20 @@ export class FormationInput {
   down(e, type = null, element = this.canvas) {
     const g = this.getGame(); if (this.active || g.phase !== 'build' || e.isPrimary === false || e.button > 2 || e.button === 1) return;
     e.preventDefault();
-    const point = this.renderer.point(e), right = e.button === 2, unit = type ? null : this.pick(point);
+    const point = this.renderer.point(e), right = e.button === 2;
+    // 卡牌模式：选着兵牌时左键直接放下整队，右键取消选牌。
+    if (this.armed && !type) {
+      if (right) { this.arm(null); this.onChange('disarm'); return; }
+      this.onStamp?.(point); this.preview(point); return;
+    }
+    const unit = type ? null : this.pick(point);
     let kind;
-    if (type) kind = 'card';
+    if (type) kind = g.cardMode ? 'none' : 'card';
     else if (right) kind = unit ? 'route' : 'none';
     else if (this.tool === 'erase') kind = 'erase';
     else if (this.tool === 'route') kind = unit ? 'route' : 'lasso';
     else if (unit) kind = 'unit';
+    else if (g.cardMode) kind = 'lasso';
     else {
       const suggestion = (this.renderer.guideGhosts || []).find(v => Math.abs(point.x - v.x) < 24 && point.y > v.y - 66 && point.y < v.y + 14 && !g.placementError(v.type, v.x, v.y, v.team));
       if (suggestion) { point.x = suggestion.x; point.y = suggestion.y; this.select(suggestion.type); }
@@ -157,7 +174,8 @@ export class FormationInput {
     } else if (s.kind === 'unit' && !s.moved) this.toggle(s.unit.pid, s.shift);
     else if ((s.kind === 'unit' || s.kind === 'card') && s.moved) {
       this.move(e);
-      if (s.recycle) { g.remove(s.unit.pid); this.prune(); this.onChange('remove', s.team, { type: s.type }); this.say(g.sandbox ? 'drag.recycledFree' : 'drag.recycled', { n: g.cost(s.type) }); }
+      if (s.recycle && g.cardMode) { g.recallCard(s.unit.card); this.prune(); this.onChange('recall', s.team, { type: s.type, card: s.unit.card }); }
+      else if (s.recycle) { g.remove(s.unit.pid); this.prune(); this.onChange('remove', s.team, { type: s.type }); this.say(g.sandbox ? 'drag.recycledFree' : 'drag.recycled', { n: g.cost(s.type) }); }
       else if (s.error) { this.say(s.kind === 'unit' ? 'drag.back' : s.error, { ...this.errorParams(s.error, s.type), reasonCode: s.error }); this.onChange('rejected', s.team, { reason: s.error, type: s.type }); }
       else if (s.kind === 'unit') { if (g.move(s.unit.pid, s.point.x, s.point.y)) this.onChange('move', s.team, { type: s.type }); }
       else { g.beginStroke(); g.place(s.type, s.point.x, s.point.y, s.team); this.setSelection([g.plan.at(-1).pid]); this.onChange('place', s.team, { type: s.type }); }

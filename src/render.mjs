@@ -55,6 +55,7 @@ function drawRock(c, o, theme) {
   c.drawImage(img, o.x - w / 2, o.y + o.r * .72 - h, w, h);
 }
 
+const height = f => (f.unit ? UNIT_HEIGHT[f.unit.type] : 62);
 function drawEffect(c, f, renderer) {
   const reduced = renderer.reduced, p = f.t / f.life, alpha = 1 - p;
   c.save(); c.translate(f.x, f.y); c.globalAlpha = Math.max(0, alpha);
@@ -124,6 +125,11 @@ function drawEffect(c, f, renderer) {
     if (!reduced) { c.rotate(f.angle || 0); for (let i = -1; i <= 1; i++) line(c, -24 - p * 12, i * 8, 6 - p * 6, i * 8, '#fff6d6', 3 * (1 - p) + .5); }
   } else if (f.kind === 'primed') {
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, r = 8 + p * 26; line(c, Math.cos(a) * r * .5, Math.sin(a) * r * .5, Math.cos(a) * r, Math.sin(a) * r, '#ffd84a', 3.5 * (1 - p) + .5); }
+  } else if (f.kind === 'momentum') {
+    label(c, `+${f.n || 1}`, 0, -height(f) - p * 22, 15, '#cfe6ff', { stroke: '#22304a', width: 4 });
+    if (!reduced) ellipse(c, 0, -height(f) * .5, 6 + p * 10, 6 + p * 10, `rgba(80,140,255,${.35 * (1 - p)})`);
+  } else if (f.kind === 'shield') {
+    ring(c, 0, -22, 14 + p * 16, 18 + p * 18, '#8fd0ff', 3 * (1 - p) + .5);
   } else if (f.kind === 'arrive') {
     ring(c, 0, 2, 10 + p * 18, (10 + p * 18) * .4, f.primed ? '#ffd84a' : '#ffffff', 3 * (1 - p) + .5);
   } else if (!reduced && f.kind === 'dust') ellipse(c, 0, 0, 3 + p * 7, 2 + p * 3, 'rgba(240,230,200,.6)');
@@ -370,6 +376,7 @@ export class Renderer {
     ellipse(c, u.x, u.y + 2, height * .27, height * .085, 'rgba(25,40,55,.25)');
     if (!build && u.team === 0 && g.effects.rally > 0) { ring(c, u.x, u.y + 2, height * .33, height * .11, '#ffd84a', 2.5); }
     if (u.frozen) ellipse(c, u.x, u.y + 2, height * .36, height * .12, 'rgba(190,232,255,.75)');
+    if (!build && u.shield > 0) { c.save(); c.globalAlpha = .35 + Math.min(.35, u.shield / 60); ring(c, u.x, u.y - height * .45, height * .42, height * .55, '#6fb6ff', 3); c.restore(); }
     c.save(); c.translate(u.x, u.y);
     if (!reduced) {
       c.translate(Math.cos(u.hitAngle || 0) * (u.recoil || 0) * 12 + ax * (swing * 7 - wind * 3), ay * (swing * 5 - wind * 2) - lift);
@@ -388,7 +395,6 @@ export class Renderer {
     if (u.chill > 0 && !u.frozen && !reduced) for (let i = 0; i < 2; i++) { const a = time * 2 + i * 3 + (u.id || 0); label(c, '❄', u.x + Math.cos(a) * 14, u.y - height * .55 + Math.sin(a * 1.3) * 9, 10, '#e8f7ff', { stroke: '#4d93c9', width: 2 }); }
     if (u.threat > 0 && u.hp > 0) { const y = u.y - height - 16; pill(c, u.x - 9, y - 9, 18, 18, '#ff6b57', INK, 2); label(c, '!', u.x, y + .5, 13, '#fff', { stroke: null }); }
     if (u.boss) this.drawCrown(c, u.x, u.y - height - (build || u.hp >= u.max ? 4 : 16), time);
-    if (u.team === 0 && this.elite?.has(u.type)) star(c, u.x + 13, u.y - 4, 6.5, '#ffd84a');
     if (!build && u.hp > 0 && u.hp < u.max) {
       const w = u.boss ? 70 : u.type === 'giant' ? 46 : 32, y = u.y - height - 5;
       pill(c, u.x - w / 2 - 1.5, y - 1.5, w + 3, 8, INK);
@@ -482,6 +488,14 @@ export class Renderer {
     const drawables = [...units.map(u => ({ y: u.y, u })), ...g.rocks.filter(o => o.kind !== 'pond').map(o => ({ y: o.y + o.r * .3, o }))].sort((a, b) => a.y - b.y);
     for (const d of drawables) { if (d.o) drawRock(c, d.o, this.theme); else this.drawUnit(c, d.u, time, build, g); }
 
+    // 卡牌模式：选着兵牌时，在鼠标处画出整队的虚影（放不下时是红色）。
+    if (build && this.stamp) {
+      const st = this.stamp, bob = reduced ? 0 : Math.sin(t * 5) * 1.5;
+      for (const p of st.spots) {
+        c.save(); c.globalAlpha = .55; drawUnitImage(c, st.type, this.skin, p.x, p.y + 3 - bob, UNIT_HEIGHT[st.type], st.valid ? {} : { silhouette: '#d2543f' }); c.restore();
+        c.setLineDash([5, 5]); ring(c, p.x, p.y + 2, 20, 8, INK, 4); ring(c, p.x, p.y + 2, 20, 8, st.valid ? '#ffe08a' : '#ff6b57', 2); c.setLineDash([]);
+      }
+    }
     if (build && !this.drag) for (const ghost of this.guideGhosts || []) {
       if (g.placementError(ghost.type, ghost.x, ghost.y, ghost.team)) continue;
       const bob = reduced ? 0 : Math.sin(t * 4) * 2;

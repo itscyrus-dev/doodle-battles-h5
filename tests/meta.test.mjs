@@ -25,10 +25,10 @@ test('旧版存档可以迁移：关卡、星级和偏好保留，新字段取�
 
 test('损坏或被改过的存档不会绕过锁关、凭空得到金币或没买过的东西', () => {
   assert.deepEqual(normalizeSave(null).stars, {}); assert.equal(normalizeSave('junk').unlocked, 0);
-  const s = normalizeSave({ unlocked: 99, currentLevel: -1, stars: { 0: 3, 1: 9, 2: '3', 77: 3 }, coins: -50, skins: ['gold', 'rainbow', 'gold'], skin: 'gold', item: 'frost', achievements: { first_win: true, cheat: true }, hints: { 3: true, 4: 'yes' }, daily: { date: 'tomorrow', level: 500, streak: -3 }, settings: { lang: 'fr' } });
+  const s = normalizeSave({ unlocked: 99, currentLevel: -1, stars: { 0: 3, 1: 9, 2: '3', 77: 3 }, coins: -50, skins: ['gold', 'rainbow', 'gold'], skin: 'gold', item: 'frost', achievements: { first_win: true, cheat: true }, hints: { 3: true, 4: 'yes' }, daily: { date: 'tomorrow', level: 500, streak: -3 } });
   assert.equal(s.unlocked, 1); assert.equal(s.currentLevel, 1); assert.deepEqual(s.stars, { 0: 3 }); assert.equal(s.coins, 0);
   assert.deepEqual(s.skins, ['blue', 'gold']); assert.equal(s.skin, 'gold'); assert.equal(s.item, 'heal', '没解锁的道具回退为急救旗');
-  assert.deepEqual(s.achievements, { first_win: true }); assert.deepEqual(s.hints, { 3: true }); assert.equal(s.daily.date, null); assert.equal(s.daily.level, null); assert.equal(s.daily.streak, 0); assert.equal(s.settings.lang, null);
+  assert.deepEqual(s.achievements, { first_win: true }); assert.deepEqual(s.hints, { 3: true }); assert.equal(s.daily.date, null); assert.equal(s.daily.level, null); assert.equal(s.daily.streak, 0);
   assert.equal(normalizeSave({ skin: 'gold' }).skin, 'blue', '没拥有的配色不能使用');
   assert.equal(normalizeSave({ unlocked: 2, currentLevel: 8 }).currentLevel, 2);
   const broken = { getItem: () => '{bad', setItem: () => { throw new Error('full'); } }; assert.equal(loadSave(broken).save.unlocked, 0); assert.equal(writeSave(broken, normalizeSave(null)), false);

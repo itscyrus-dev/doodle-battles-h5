@@ -46,11 +46,10 @@ export function normalizeSave(raw) {
     counters: { battles: count(counters.battles), wins: count(counters.wins), kills: count(counters.kills), flawless: count(counters.flawless), small: count(counters.small), fast: count(counters.fast), sandbox: count(counters.sandbox), hints: count(counters.hints) },
     usedUnits: flags(s.usedUnits, UNIT_ORDER),
     usedItems: flags(s.usedItems, Object.keys(ITEMS)),
-    tips: flags(s.tips, ['runroute', 'howto']),
+    tips: flags(s.tips, ['runroute', 'howto', 'runcards']),
     run: normalizeRun(s.run),
     runStats: { runs: count(runStats.runs), wins: count(runStats.wins), bosses: count(runStats.bosses), bestAct: count(runStats.bestAct, 3), bestWins: count(runStats.bestWins, 999) },
     settings: {
-      lang: ['zh', 'en'].includes(settings.lang) ? settings.lang : null,
       music: settings.music !== false, sfx: settings.sfx !== false,
       haptics: (settings.haptics ?? s.haptics) !== false,
       speed: (settings.speed ?? s.speed) === 2 ? 2 : 1,

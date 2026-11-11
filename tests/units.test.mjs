@@ -115,7 +115,7 @@ test('兵种和道具按关卡进度解锁；每章十关；关卡数据完整',
   assert.deepEqual(Object.keys(TYPES).sort(), [...UNIT_ORDER].sort()); assert.deepEqual(Object.keys(ITEMS).sort(), [...ITEM_ORDER].sort());
   assert.equal(LEVELS.length, CHAPTERS.length * LEVELS_PER_CHAPTER);
   for (const l of LEVELS) {
-    for (const lang of ['zh', 'en']) { assert.ok(l.title[lang].length > 1); assert.ok(l.hint[lang].length > 10); assert.ok(l.tag[lang].length > 1); }
+    assert.ok(l.title.length > 1); assert.ok(l.hint.length > 10); assert.ok(l.tag.length > 1);
     assert.ok(ITEMS[l.recommendedItem]); assert.ok(l.par >= 25 && l.par <= 45); assert.ok(l.budget >= 60 && l.budget <= 260 && l.budget % 5 === 0);
     // 新兵种不会先于玩家出现在敌方阵营里超过一关：敌人用到的兵种，玩家最迟在下一关也能用。
     for (const u of l.enemies) assert.ok(TYPES[u.type].unlock <= l.index + 1, `第${l.index + 1}关的敌方 ${u.type} 出现得太早`);

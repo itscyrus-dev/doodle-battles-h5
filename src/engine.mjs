@@ -285,7 +285,7 @@ export class Battle {
   }
 
   effect(x, y, kind, team = 0, extra = {}) {
-    const life = { death: .6, boom: .5, frostburst: .55, thunder: .5, healbeam: .35, charge: .36, flank: .5, primed: .45, arrive: .5 }[kind] ?? .32;
+    const life = { death: .6, boom: .5, frostburst: .55, thunder: .5, healbeam: .35, charge: .36, flank: .5, primed: .45, arrive: .5, momentum: .8, shield: .45 }[kind] ?? .32;
     this.fx.push({ x, y, kind, team, t: 0, life, ...extra });
   }
 

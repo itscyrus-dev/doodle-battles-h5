@@ -131,6 +131,8 @@ export function normalizeRun(raw) {
 
 // ---------- 抽牌 ----------
 export const perksOf = run => relicPerks(run.relics);
+// 牌库里出现过的兵种（主页小队、图鉴用）。
+export const deckTypes = run => [...new Set((run?.deck || []).filter(e => CARDS[e.id]?.kind === 'unit').map(e => CARDS[e.id].type))];
 export const handSize = run => HAND.size + perksOf(run).hand;
 // 手牌按“兵牌在前、战术牌在后”，同类按牌库顺序排。
 const sortHand = (run, hand) => hand.slice().sort((a, b) => (CARDS[run.deck[a].id].kind === 'tactic') - (CARDS[run.deck[b].id].kind === 'tactic') || a - b);

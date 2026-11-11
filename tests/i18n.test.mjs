@@ -1,45 +1,60 @@
-// 文案完整性：两种语言的条目和占位符必须一致，代码里用到的条目都要存在。
+// 文案完整性：代码里用到的条目都要存在，没有空文案。界面只有中文。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { STRINGS, t, setLang, pick, detectLang } from '../src/i18n.mjs';
+import { STRINGS, t, pick } from '../src/i18n.mjs';
 import { UNIT_ORDER, ITEM_ORDER } from '../src/data.mjs';
 import { ACHIEVEMENTS, SKINS } from '../src/meta.mjs';
+import { CARD_ORDER, KEYWORD_ORDER, TACTIC_ORDER, CARDS, cardStats } from '../src/cards.mjs';
+import { RELIC_ORDER } from '../src/relics.mjs';
+import { WARBAND_ORDER, EVENTS, campOptions } from '../src/run.mjs';
+import { cardText } from '../src/card-view.mjs';
 
-const placeholders = text => [...text.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join(',');
-
-test('中英文条目一一对应，占位符相同，没有空文案', () => {
-  const zh = Object.keys(STRINGS.zh).sort(), en = Object.keys(STRINGS.en).sort();
-  assert.deepEqual(zh.filter(k => !(k in STRINGS.en)), [], '英文缺少的条目'); assert.deepEqual(en.filter(k => !(k in STRINGS.zh)), [], '中文缺少的条目');
-  for (const key of zh) { assert.ok(STRINGS.zh[key].trim() && STRINGS.en[key].trim(), key); assert.equal(placeholders(STRINGS.zh[key]), placeholders(STRINGS.en[key]), `${key} 的占位符不一致`); }
+test('没有空文案', () => {
+  for (const [key, text] of Object.entries(STRINGS)) assert.ok(typeof text === 'string' && text.trim(), key);
 });
 
 test('代码里写死的文案条目都存在', () => {
   const dir = new URL('../src/', import.meta.url), missing = [];
-  for (const file of readdirSync(dir).filter(f => f.endsWith('.mjs') && f !== 'i18n.mjs')) {
+  for (const file of readdirSync(dir).filter(f => f.endsWith('.mjs') && !f.startsWith('i18n'))) {
     const source = readFileSync(new URL(file, dir), 'utf8');
-    for (const m of source.matchAll(/\bt\(\s*'([a-zA-Z0-9_.-]+)'/g)) if (!(m[1] in STRINGS.zh)) missing.push(`${file}: ${m[1]}`);
+    for (const m of source.matchAll(/\bt\(\s*'([a-zA-Z0-9_.-]+)'/g)) if (!(m[1] in STRINGS)) missing.push(`${file}: ${m[1]}`);
   }
   assert.deepEqual(missing, []);
 });
 
-test('按规则拼出来的条目（兵种、道具、成就、配色、错误、预览）都存在', () => {
+test('按规则拼出来的条目（兵种、道具、成就、卡牌、遗物、奇遇……）都存在', () => {
   const need = [
     ...UNIT_ORDER.flatMap(u => ['name', 'role', 'good', 'watch'].map(p => `unit.${u}.${p}`)),
     ...ITEM_ORDER.flatMap(i => ['name', 'short', 'desc'].map(p => `item.${i}.${p}`)),
     ...ACHIEVEMENTS.flatMap(a => [`ach.${a.id}.name`, `ach.${a.id}.desc`]), ...SKINS.map(k => `skin.${k.id}`),
-    ...['phase', 'invalid', 'bounds', 'zone-blue', 'zone-red', 'rock', 'pond', 'team-full', 'type-full', 'ink', 'overlap'].map(c => `err.${c}`),
+    ...['phase', 'invalid', 'bounds', 'zone-blue', 'zone-red', 'rock', 'pond', 'team-full', 'type-full', 'ink', 'overlap', 'played', 'crowded'].map(c => `err.${c}`),
     ...['no-enemy', 'support', 'unreachable', 'blocked', 'in-range', 'lob', 'hunt', 'route'].map(s => `preview.${s}`),
     ...['itemHeal', 'itemSmoke', 'itemRally', 'itemThunder', 'itemFrost', 'mended', 'blocked', 'charges', 'backlineDeaths', 'explosion', 'chilled', 'summary', 'stoneArrows', 'firstLoss'].map(o => `obs.${o}`),
-    ...['default', 'spread', 'frontline', 'chill', 'guardsWorked', 'stone'].map(k => `tip.${k}`)
+    ...['default', 'spread', 'frontline', 'chill', 'guardsWorked', 'stone'].map(k => `tip.${k}`),
+    ...CARD_ORDER.map(id => `card.${id}`), ...['common', 'uncommon', 'rare'].map(r => `rarity.${r}`),
+    ...KEYWORD_ORDER.flatMap(k => [`kw.${k}`, `kw.${k}.desc`]),
+    ...TACTIC_ORDER.map(e => `tactic.${e}.desc`), ...CARD_ORDER.filter(id => CARDS[id].targeted).map(id => `tactic.${CARDS[id].effect}.target`),
+    ...RELIC_ORDER.flatMap(id => [`relic.${id}`, `relic.${id}.desc`]),
+    ...WARBAND_ORDER.flatMap(id => [`warband.${id}`, `warband.${id}.desc`]),
+    ...Object.entries(EVENTS).flatMap(([id, e]) => [`event.${id}`, `event.${id}.text`, ...e.choices.map(c => `event.${id}.${c}`)]),
+    ...campOptions({ hearts: 1, maxHearts: 3, deck: [] }).flatMap(o => [`camp.${o.id}`, `camp.${o.id}.desc`, `camp.${o.id}.no`]),
+    ...['remove', 'upgrade'].flatMap(id => [`shop.${id}`, `shop.${id}.desc`]),
+    ...['damage', 'kills', 'strikes', 'tactics'].map(k => `feats.${k}`)
   ];
-  for (const lang of ['zh', 'en']) assert.deepEqual(need.filter(k => !STRINGS[lang][k]), [], `${lang} 缺少条目`);
+  assert.deepEqual(need.filter(k => !STRINGS[k]), []);
 });
 
-test('取词：替换占位符、按语言取关卡文字、缺失时回退', () => {
-  setLang('en'); assert.equal(t('common.level', { n: 7 }), 'Level 7'); assert.equal(pick({ zh: '初次交锋', en: 'First Clash' }), 'First Clash');
-  setLang('zh'); assert.equal(t('common.level', { n: 7 }), '第 7 关'); assert.equal(pick({ zh: '初次交锋', en: 'First Clash' }), '初次交锋');
-  assert.equal(t('no.such.key'), 'no.such.key'); assert.equal(t('err.type-full', { name: '弓手' }), '弓手最多 {n} 名', '没给的参数保留占位符，便于发现遗漏');
-  assert.equal(setLang('fr'), 'zh', '不支持的语言保持不变');
-  assert.equal(detectLang(['zh-TW', 'en']), 'zh'); assert.equal(detectLang(['en-US']), 'en'); assert.equal(detectLang(['ja-JP']), 'en'); assert.equal(detectLang([]), 'en');
+test('每张牌的说明都填好了数字，没有漏掉的占位符', () => {
+  for (const id of CARD_ORDER) for (const up of [false, true]) {
+    const text = cardText(cardStats({ id, up }));
+    assert.ok(text && !/[{}]/.test(text) && !text.includes('.desc'), `${id}${up ? '+' : ''}: ${text}`);
+  }
+});
+
+test('取词：替换占位符；找不到时返回 key', () => {
+  assert.equal(t('common.level', { n: 7 }), '第 7 关');
+  assert.equal(pick('初次交锋'), '初次交锋'); assert.equal(pick(undefined), '');
+  assert.equal(t('no.such.key'), 'no.such.key');
+  assert.equal(t('err.type-full', { name: '弓手' }), '弓手最多 {n} 名', '没给的参数保留占位符，便于发现遗漏');
 });

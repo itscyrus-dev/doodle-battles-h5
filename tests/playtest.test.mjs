@@ -60,8 +60,8 @@ test('中期与最终关的可选挑战都有合法、实际可达成的通关�
 test('后三章的可选挑战可以用通关样本达成；引导与挑战的文案在两种语言里都有',async()=>{
  const solutions=JSON.parse(readFileSync(new URL('./fixtures/level-solutions.json',import.meta.url),'utf8')),{STRINGS}=await import('../src/i18n.mjs');
  for(const level of [19,29,39]){const g=new Battle(level);for(const u of solutions[level].plan)g.place(u.type,u.x,u.y);g.start();for(let i=0;i<5000&&g.phase==='battle';i++)g.update(1/60);assert.equal(SPOTLIGHTS[level].check(g),true,`第${level+1}关的挑战用样本无法达成`);}
- for(const spot of Object.values(SPOTLIGHTS))for(const lang of ['zh','en'])for(const part of ['goal','desc'])assert.ok(STRINGS[lang][`spot.${spot.id}.${part}`],`${lang} 缺少 spot.${spot.id}.${part}`);
- for(const level of [0,1,2,5,10,12,15,20,22]){const step=guideStep(new Battle(level));assert.ok(step,`第${level+1}关应有引导`);for(const lang of ['zh','en']){assert.ok(STRINGS[lang][step.title]);assert.ok(STRINGS[lang][step.text]);}}
+ for(const spot of Object.values(SPOTLIGHTS))for(const part of ['goal','desc'])assert.ok(STRINGS[`spot.${spot.id}.${part}`],`缺少 spot.${spot.id}.${part}`);
+ for(const level of [0,1,2,5,10,12,15,20,22]){const step=guideStep(new Battle(level));assert.ok(step,`第${level+1}关应有引导`);assert.ok(STRINGS[step.title]);assert.ok(STRINGS[step.text]);}
  assert.equal(guideStep(new Battle(0,true)),null,'沙盒没有引导');
 });
 

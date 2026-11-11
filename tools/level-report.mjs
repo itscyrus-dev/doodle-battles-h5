@@ -93,7 +93,7 @@ export function analyse(level, { samples = 150, search: iterations = 160, seed =
     if (score(found.result) > score(best.r)) best = { plan: found.plan, r: found.result };
   }
   return {
-    level: level + 1, title: LEVELS[level].title.zh, budget: LEVELS[level].budget, par: LEVELS[level].par, item, samples: runs.length,
+    level: level + 1, title: LEVELS[level].title, budget: LEVELS[level].budget, par: LEVELS[level].par, item, samples: runs.length,
     winRate: wins.length / runs.length, threeStarRate: wins.filter(x => x.r.stars === 3).length / runs.length,
     medianWinTime: median(wins.map(x => x.r.time)), best: { ...best.r, plan: best.plan, noItem }
   };
@@ -113,7 +113,7 @@ export function tune(level, target, { samples = 150, seed = 1 } = {}) {
   }
   const best = [...tried.entries()].sort((a, c) => Math.abs(a[1] - target) - Math.abs(c[1] - target) || a[0] - c[0])[0];
   LEVELS[level].budget = original;
-  return { level: level + 1, title: LEVELS[level].title.zh, original, target, budget: best[0], rate: best[1], tried: [...tried.entries()].sort((a, c) => a[0] - c[0]) };
+  return { level: level + 1, title: LEVELS[level].title, original, target, budget: best[0], rate: best[1], tried: [...tried.entries()].sort((a, c) => a[0] - c[0]) };
 }
 
 function args() {
@@ -166,7 +166,7 @@ if (isCli) {
     console.log(`\n${pad('关卡', 6)}${pad('名称', 14)}${sweep.map(s => pad(`×${s}${s === 1 ? '(原)' : ''}`, 18)).join('')}`);
     for (const level of levels) {
       const row = sweep.map(scale => { const r = results.find(x => x.level === level + 1 && x.scale === scale); return pad(`${r.budget} ${pct(r.winRate).trim()} ${r.best.won ? '★' + r.best.stars : '✗'}`, 18); });
-      console.log(`${pad(level + 1, 6)}${pad(LEVELS[level].title.zh, 14)}${row.join('')}`);
+      console.log(`${pad(level + 1, 6)}${pad(LEVELS[level].title, 14)}${row.join('')}`);
     }
     console.log('\n每格：预算 随机胜率 搜到的最好星级（✗ 表示本次没搜到胜解）。');
     if (json) writeFileSync(json, JSON.stringify({ opts, sweep, results }, null, 2));
