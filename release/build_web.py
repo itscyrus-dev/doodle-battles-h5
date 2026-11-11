@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""打包网页试玩版：只含运行文件，输出到 dist/web，可直接上传到静态托管（如 Cloudflare Pages）。
+"""打包网页试玩版：只含运行文件，输出到 dist/web。
 
-不包含测试、工具、开发预览或本机记录。部署：
-  bunx wrangler@4.131.1 pages deploy dist/web --project-name draw-clash-playtest --branch main
+不包含测试、工具、开发预览或本机记录。Cloudflare Pages 连接 GitHub 仓库后，
+构建命令填 `python3 release/build_web.py`，输出目录填 `dist/web`，推送到 main 即自动发布。
 """
 import json
 import pathlib
