@@ -20,7 +20,9 @@ const zh = {
 
   'run.title': '远征', 'run.act': '第 {n} 章', 'run.floor': '第 {n} 层', 'run.where.start': '出发点', 'run.where.boss': '首领前',
   'run.hearts': '心', 'run.ink': '墨水上限', 'run.coins': '金币', 'run.relics': '遗物',
-  'run.noRelics': '还没有遗物', 'run.pick': '选择下一站', 'run.home': '主页', 'run.abandon': '放弃远征',
+  'run.noRelics': '还没有遗物', 'run.pick': '点发光的节点前进',
+  'run.notYet': '还到不了这里。沿着虚线一站一站走，先点发光的节点。', 'run.missed': '这条路已经错过了，点发光的节点继续前进。',
+  'run.tag.later': '还到不了', 'run.tag.missed': '已错过', 'run.home': '主页', 'run.abandon': '放弃远征',
   'run.abandonConfirm': '放弃后这局远征直接结束，按走过的路程结算金币。确定吗？', 'run.continue': '继续远征', 'run.saved': '进度已自动保存',
   'run.new': '新的远征', 'run.warband': '选择编制', 'run.warbandSub': '编制决定起始牌库和遗物。一路上还会拿到更多卡牌。', 'run.start': '出发！', 'run.replace': '开始新的远征会放弃当前这一局。',
   'run.battleTitle': '第 {act} 章 · 第 {floor} 层', 'run.attempt': '第 {n} 次尝试', 'run.retreat': '回到主页（进度已保存）',

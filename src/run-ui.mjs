@@ -88,9 +88,12 @@ export function createRunUI(app) {
       const m = map.nodes.get(id), walked = path.has(n.id) && path.has(id) && r.path.indexOf(id) === r.path.indexOf(n.id) + 1, next = n.id === here && open.has(id);
       lines.push(`<line x1="${x(n.row)}" y1="${y(n.lane)}" x2="${x(m.row)}" y2="${y(m.lane)}" stroke="${walked ? '#e3a51c' : next ? '#22304a' : 'rgba(34,48,74,.45)'}" stroke-width="${walked ? 7 : next ? 5 : 3.5}" stroke-linecap="round" ${walked ? '' : `stroke-dasharray="${next ? '2 10' : '2 9'}"`}/>`);
     }
+    // 节点状态：open 现在能去（发光）；later 以后才走得到（调淡）；skip 已经错过（变灰）；done/here 走过的。
     const nodes = [...map.nodes.values()].map(n => {
-      const cls = [n.kind === 'boss' ? 'boss' : '', n.kind === 'elite' ? 'elite' : '', open.has(n.id) ? 'open' : '', path.has(n.id) && n.id !== here ? 'done' : '', n.id === here ? 'here done' : '', !open.has(n.id) && !path.has(n.id) && !reach.has(n.id) ? 'skip' : ''].join(' ');
-      return `<button class="rnode ${cls}" style="left:${x(n.row)}px;top:${y(n.lane)}px" data-node="${n.id}" ${open.has(n.id) ? '' : 'tabindex="-1"'} ${tipAttrs(t(`node.${n.kind}`), t(`node.${n.kind}.desc`))}>${img(nodeArt(n.kind))}</button>`;
+      const state = open.has(n.id) ? 'open' : path.has(n.id) ? '' : reach.has(n.id) ? 'later' : 'skip';
+      const cls = [n.kind === 'boss' ? 'boss' : '', n.kind === 'elite' ? 'elite' : '', state, path.has(n.id) && n.id !== here ? 'done' : '', n.id === here ? 'here done' : ''].join(' ');
+      const tag = state === 'later' ? ` · ${t('run.tag.later')}` : state === 'skip' ? ` · ${t('run.tag.missed')}` : '';
+      return `<button class="rnode ${cls}" style="left:${x(n.row)}px;top:${y(n.lane)}px" data-node="${n.id}" ${open.has(n.id) ? '' : 'tabindex="-1"'} ${tipAttrs(t(`node.${n.kind}`) + tag, t(`node.${n.kind}.desc`))}>${img(nodeArt(n.kind))}</button>`;
     }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${lines.join('')}</svg>${nodes}`;
   }
@@ -132,13 +135,28 @@ export function createRunUI(app) {
         <span class="stat" ${tipAttrs(t('run.ink'))}>${img('icons/ink.webp')}${r.ink}</span>
         <span class="stat" ${tipAttrs(t('run.coins'))}>${img('icons/coin.webp')}${r.coins}</span>
         <span class="spacer" style="flex:1"></span>
-        ${r.screen === 'map' ? `<span class="stat">${esc(t('run.pick'))}</span>` : ''}</header>
+        ${r.screen === 'map' ? `<button class="run-hint" id="run-hint">${esc(t('run.pick'))}</button>` : ''}</header>
       <div class="run-body"><div class="run-graph">${graph(r)}</div><aside class="run-side panel">${side(r)}</aside></div>`;
     paintArt(screen, skin());
     $('#run-home').onclick = () => app.go('home');
     $('#run-abandon').onclick = confirmAbandon;
     $('#run-deck').onclick = openDeck;
-    for (const b of $$('.rnode.open', screen)) b.onclick = () => pickNode(b.dataset.node);
+    for (const b of $$('.rnode', screen)) b.onclick = () => b.classList.contains('open') ? pickNode(b.dataset.node) : refuse(b);
+    const hint = $('#run-hint'); if (hint) hint.onclick = () => { flashOpen(); audio.sfx('tap'); };
+  }
+  // 让现在能去的节点快速闪几下，告诉玩家该点哪里。
+  let flashTimer = 0;
+  function flashOpen() {
+    const g = $('#screen-run .run-graph'); if (!g) return;
+    g.classList.remove('flash'); void g.offsetWidth; g.classList.add('flash');
+    clearTimeout(flashTimer); flashTimer = setTimeout(() => g.classList.remove('flash'), 1300);
+  }
+  // 点了现在去不了的节点：节点晃一下，能去的节点闪一下，再用一句话说明。走过的节点不用提示。
+  function refuse(b) {
+    if (run().screen !== 'map' || b.classList.contains('done')) return;
+    b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope');
+    flashOpen(); audio.sfx('invalid');
+    toast(t(b.classList.contains('skip') ? 'run.missed' : 'run.notYet'), 2600);
   }
   function pickNode(id) {
     const r = run(); if (!enter(r, id)) return;

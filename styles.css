@@ -238,6 +238,9 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .run-top .title strong { font-size: 20px; font-weight: 900; }
 .run-top .stat { display: inline-flex; align-items: center; gap: 6px; height: 42px; padding: 0 14px 0 8px; border-radius: 999px; background: rgba(255, 248, 231, .94); border: 3px solid var(--ink); font-weight: 900; font-size: 17px; font-variant-numeric: tabular-nums; }
 .run-top .stat img { width: 28px; height: 28px; }
+/* 右上角的操作提示：深色底加一个发光圆点，和地图上发光的节点对应；点一下让那些节点闪几下。 */
+.run-top .run-hint { display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 18px 0 14px; border: 0; border-radius: 999px; background: rgba(34, 48, 74, .82); color: #fff8e7; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; }
+.run-top .run-hint::before { content: ''; width: 14px; height: 14px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 0 3px rgba(255, 210, 63, .35), 0 0 10px 3px rgba(255, 190, 0, .75); }
 .run-body { position: relative; z-index: 1; flex: 1; display: grid; grid-template-columns: 1fr 280px; gap: 14px; padding: 0 20px 20px; min-height: 0; }
 .run-graph { position: relative; border-radius: 22px; }
 .run-graph svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -246,12 +249,18 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .rnode.boss { width: 92px; height: 92px; background: #ffd9cf; }
 .rnode.boss img { width: 70px; height: 70px; }
 .rnode.elite { background: #f3d6ff; }
-.rnode.open { background: #fff0b8; animation: pulse 1.3s ease-in-out infinite; cursor: pointer; }
-.rnode.open:hover { transform: translate(-50%, -50%) scale(1.12); animation: none; }
+/* 现在能去的节点：金色光圈一直亮着（关掉动画时也在），再一呼一吸地放大。 */
+.rnode.open { z-index: 1; background: #ffe58a; cursor: pointer; box-shadow: 0 4px 0 var(--ink), 0 0 0 5px #ffd23f, 0 0 18px 6px rgba(255, 190, 0, .6); animation: beacon 1.2s ease-in-out infinite; }
+.rnode.open:hover { transform: translate(-50%, -50%) scale(1.14); animation: none; }
+.run-graph.flash .rnode.open { animation: beacon .3s ease-in-out 4; }
+@keyframes beacon { 50% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 4px 0 var(--ink), 0 0 0 8px #ffd23f, 0 0 30px 12px rgba(255, 190, 0, .8); } }
+/* 点了还去不了的节点：左右晃一下。 */
+.rnode.nope { animation: nope .36s ease-in-out; }
+@keyframes nope { 20%, 60% { transform: translate(calc(-50% - 7px), -50%); } 40%, 80% { transform: translate(calc(-50% + 7px), -50%); } }
 .rnode.done { opacity: .8; background: #e2f3d8; }
 .rnode.done::after { content: '✓'; position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; border-radius: 50%; background: var(--green); color: #fff; font-weight: 900; font-size: 15px; display: grid; place-items: center; border: 2px solid var(--ink); }
 .rnode.here { outline: 4px solid var(--gold); outline-offset: 3px; }
-.rnode.far { filter: saturate(.55) brightness(.92); }
+.rnode.later { filter: saturate(.6) brightness(.96); opacity: .85; }
 .rnode.skip { opacity: .45; filter: grayscale(.8); }
 .run-side { display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto; }
 .run-side h4 { margin: 4px 0 2px; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: var(--ink-soft); text-transform: uppercase; }
@@ -425,7 +434,7 @@ table.units th:first-child, table.units td:first-child { text-align: left; }
 
 @keyframes float { 50% { transform: translateY(-8px); } }
 @keyframes pulse { 50% { transform: translate(var(--tx, 0), var(--ty, 0)) scale(1.04); } }
-.node.current, .rnode.open { --tx: -50%; --ty: -50%; }
+.node.current { --tx: -50%; --ty: -50%; }
 @keyframes bump { 40% { transform: scale(1.12); } }
 @keyframes pop { from { transform: scale(.4); opacity: 0; } }
 @keyframes starpop { from { transform: scale(0) rotate(-40deg); opacity: 0; } }
