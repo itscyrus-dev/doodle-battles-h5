@@ -1,4 +1,4 @@
-// 中英文文案。t(key, params) 取当前语言的句子并替换 {占位符}；缺失时回退到中文，再回退到 key 本身。
+// 界面文案（只有中文）。t(key, params) 取句子并替换 {占位符}；找不到时返回 key 本身，方便发现遗漏。
 import { MORE } from './i18n-run.mjs';
 const zh = {
   'app.name': '涂鸦小队',
@@ -114,7 +114,7 @@ const zh = {
   'ach.daily_7.name': '风雨无阻', 'ach.daily_7.desc': '连续 7 天完成每日悬赏', 'ach.skins_3.name': '调色盘', 'ach.skins_3.desc': '拥有 3 种军旗配色',
   'ach.sandbox.name': '沙盘推演', 'ach.sandbox.desc': '完成一场沙盒战斗',
 
-  'settings.title': '设置', 'settings.language': '语言', 'settings.music': '背景音乐', 'settings.sfx': '音效', 'settings.haptics': '震动反馈', 'settings.hapticsNA': '此浏览器不支持',
+  'settings.title': '设置', 'settings.music': '背景音乐', 'settings.sfx': '音效', 'settings.haptics': '震动反馈', 'settings.hapticsNA': '此浏览器不支持',
   'settings.reduced': '减少动效', 'settings.reducedNote': '关闭震屏和多余的动画', 'settings.feedback': '试玩反馈', 'settings.reset': '重置全部进度', 'settings.resetConfirm': '确定清空关卡进度、金币和配色吗？这个操作无法撤销。',
   'settings.resetDone': '进度已重置', 'settings.privacy': '单机游戏：进度只保存在这台设备的浏览器里，不会上传。', 'settings.version': '版本 {v}',
   'feedback.title': '告诉我们哪里卡住了', 'feedback.note': '只保存在本机，不会自动上传。可以导出后自行分享。', 'feedback.rating': '这次好玩吗？', 'feedback.choose': '请选择',
@@ -149,174 +149,14 @@ const zh = {
   'spot.swift.goal': '速战速决', 'spot.swift.desc': '在 25 秒内获胜。',
   'spot.bare.goal': '不靠道具', 'spot.bare.desc': '全程不使用道具并获胜。',
 
-  'toast.storage': '本机存储不可用，进度可能无法保存', 'toast.welcomeBack': '已恢复你之前的进度', 'toast.lang': '已切换为中文'
+  'toast.storage': '本机存储不可用，进度可能无法保存', 'toast.welcomeBack': '已恢复你之前的进度'
 };
 
-const en = {
-  'app.name': 'Draw & Clash',
-  'app.tagline': 'Draw your tactics.',
-  'common.close': 'Close', 'common.back': 'Back', 'common.cancel': 'Cancel', 'common.confirm': 'Confirm', 'common.ok': 'OK',
-  'common.level': 'Level {n}', 'common.locked': 'Locked', 'common.on': 'On', 'common.off': 'Off',
-  'common.coins': 'Coins', 'common.stars': 'Stars', 'common.new': 'NEW',
-
-  'boot.loading': 'Rallying the squad…', 'boot.error': 'Something went wrong while loading. Please reload.', 'boot.retry': 'Reload', 'boot.tap': 'Tap to start',
-
-  'home.continue': 'Continue', 'home.start': 'Play', 'home.levelTag': 'Level {n} · {title}', 'home.allClear': 'All clear · Go for 3 stars',
-  'home.map': 'Levels', 'home.daily': 'Bounty', 'home.collection': 'Codex', 'home.shop': 'Colours', 'home.sandbox': 'Sandbox', 'home.achievements': 'Awards', 'home.settings': 'Settings',
-
-  'map.title': 'Campaign', 'map.chapter': 'Chapter {n}', 'map.progress': '{done}/{total} cleared', 'map.lockedChapter': 'Clear level {n} to open', 'map.prev': 'Previous chapter', 'map.next': 'Next chapter', 'map.boss': 'Boss',
-
-  'level.enemies': 'Enemies', 'level.ink': 'Ink', 'level.par': 'Par time', 'level.seconds': '{n}s', 'level.yourMax': 'Your squad cap',
-  'level.rocks': 'Boulders ×{n}', 'level.ponds': 'Ponds ×{n}', 'level.open': 'Open field',
-  'level.hint': 'Briefing', 'level.recommended': 'Suggested item', 'level.challenge': 'Bonus challenge', 'level.challengeDone': 'Challenge complete', 'level.challengeReward': '+{n} coins',
-  'level.fight': 'Battle', 'level.resume': 'Back to deployment', 'level.lockedBtn': 'Clear level {n} first', 'level.best': 'Best result',
-  'level.starRule': '3 stars: win · keep at least half your squad · win within {n}s',
-  'level.unlockUnit': 'Clear this level to unlock: {name}', 'level.unlockItem': 'Clear this level to unlock: {name}',
-
-  'battle.deploy': 'Deploy', 'battle.you': 'You', 'battle.enemy': 'Enemy', 'battle.red': 'Red', 'battle.blue': 'Blue',
-  'battle.start': 'Fight!', 'battle.pause': 'Pause', 'battle.resume': 'Resume', 'battle.redeploy': 'Redeploy', 'battle.report': 'See report', 'battle.again': 'Try again',
-  'battle.undo': 'Undo', 'battle.erase': 'Eraser', 'battle.clear': 'Clear', 'battle.hint': 'Hint', 'battle.autofill': '✦ Drop a starter formation',
-  'battle.speed': 'Toggle battle speed. It does not change the result or the stars.',
-  'battle.zone.yours': 'YOUR DEPLOYMENT ZONE', 'battle.zone.enemy': 'ENEMY LINES', 'battle.zone.red': 'RED DEPLOYMENT ZONE',
-  'battle.paused': 'Paused', 'battle.victory': 'Victory!', 'battle.defeat': 'Defeated', 'battle.timeUp': 'Time up', 'battle.block': 'BLOCK',
-  'battle.tip.build': 'Left-drag to draw units · right-drag from a unit to draw its route · drag back to the left panel to recycle', 'battle.tip.sandbox': 'Blue on the left half, red on the right · up to 10 per team',
-  'battle.tip.eraser': 'Eraser: hold the left button and sweep over units to remove them and refund their ink', 'battle.sandbox': 'Sandbox', 'battle.sandboxSub': 'Your rules, your battle',
-  'battle.item.pick': 'Choose before battle', 'battle.item.once': 'Once per battle', 'battle.item.use': 'Click to use (R)', 'battle.item.used': 'Used', 'battle.item.active': '{n}s',
-  'battle.item.target': 'Click a spot on the field to strike', 'battle.item.none': 'Not spent at full health', 'battle.quota': '{name}, {cost} ink, {count} placed, limit {limit}',
-  'battle.unitLocked': 'Unlocks at level {n}', 'battle.free': 'Free', 'battle.storage': 'Local storage is unavailable · progress may be lost on reload',
-
-  'err.phase': 'You cannot change the formation after the battle starts', 'err.invalid': 'That is not a valid spot', 'err.bounds': 'Place it inside the field',
-  'err.zone-blue': 'Place it in the blue zone on the left', 'err.zone-red': 'Place it in the red zone on the right', 'err.rock': 'A boulder is in the way', 'err.pond': 'That is water — pick another spot',
-  'err.team-full': 'A squad holds {n} units at most — recycle one first', 'err.type-full': '{name}: limit {n}', 'err.ink': 'Not enough ink — pick a cheaper unit or recycle one', 'err.overlap': 'Too close to another unit',
-  'drag.drop': 'Release to place · drag down to recycle', 'drag.recycle': 'Release to recycle · refund {n} ink', 'drag.recycleFree': 'Release to recycle',
-  'drag.recycled': 'Recycled · {n} ink refunded', 'drag.recycledFree': 'Recycled', 'drag.back': '{reason} — moved back', 'recycle.zone': 'Drop here to recycle\nink refunded',
-
-  'preview.title': '{name} · range {range}', 'preview.note': 'Targets will move once the battle starts',
-  'preview.no-enemy': 'Place some enemies to preview a route', 'preview.support': 'Heals injured allies in range and follows the squad when nobody is hurt',
-  'preview.unreachable': 'The route is blocked — try another spot', 'preview.blocked': 'A boulder blocks the shot · it must walk around', 'preview.in-range': 'The target is already in range',
-  'preview.lob': 'Lobs over boulders · the dashed line is its route', 'preview.hunt': 'Slips past the front line to hunt the back line · the dashed line is its run', 'preview.route': 'The dashed line is its route to the first target',
-
-  'feedback.rear': 'Your back line is under melee attack!', 'feedback.heal': '{targets} wounded restored {amount} HP', 'feedback.item': '{name} is active', 'feedback.itemEnd': '{name} has worn off',
-
-  'pause.title': 'Paused', 'pause.resume': 'Resume battle', 'pause.redeploy': 'Redeploy', 'pause.map': 'Back to levels', 'pause.home': 'Back to home', 'pause.keep': 'Your formation is saved automatically',
-
-  'result.win': 'A fine stroke!', 'result.winFinal': 'Campaign complete. Superb!', 'result.lose': 'Adjust the formation and try again', 'result.timeout': 'Time ran out before a winner emerged',
-  'result.winSub': 'The win is recorded and your progress is saved.', 'result.loseSub': 'Your formation is kept. Move a few units and try a new idea.', 'result.timeoutSub': 'The fight was not over after 80 seconds. Bring more damage or pick another route.',
-  'result.sandboxWin': 'Blue wins', 'result.sandboxLose': 'Red wins', 'result.sandboxSub': 'Sandbox battles do not count towards progress.',
-  'result.time': 'Battle time', 'result.survivors': 'Survivors', 'result.ink': 'Ink spent',
-  'result.rewards': 'Rewards', 'result.firstClear': 'First clear', 'result.newStars': 'New stars ×{n}', 'result.medal': 'Challenge', 'result.daily': 'Daily bounty', 'result.noReward': 'No extra coins for replaying a 3-star level',
-  'result.unlockUnit': 'New unit unlocked', 'result.unlockItem': 'New item unlocked', 'result.chapter': 'Chapter {n} “{name}” complete!', 'result.achievement': 'Award earned · {name}',
-  'result.next': 'Next level', 'result.nextTitle': 'Next · {title}', 'result.retry': 'Adjust and try again', 'result.retryKeep': 'Retry with this formation', 'result.map': 'Levels', 'result.home': 'Home',
-  'result.review': 'Battle review', 'result.tableUnit': 'Unit', 'result.tableDealt': 'Dealt', 'result.tableTaken': 'Taken', 'result.tableAlive': 'Alive',
-  'result.compare': 'Same squad, last time: {a} survivors → now {b}; time {c}s → {d}s.', 'result.challenge': 'Bonus challenge · {goal}', 'result.challengeDone': '✦ Challenge complete · {goal}',
-  'result.hint': 'Stuck? Try the strategist\'s hint',
-
-  'obs.itemHeal': 'The aid flag restored {n} HP.', 'obs.itemSmoke': 'Smoke prevented {n} arrow damage.', 'obs.itemRally': 'Your squad landed {n} attacks during the rally.',
-  'obs.itemThunder': 'The thunder strike hit {n} enemies for {damage} damage.', 'obs.itemFrost': 'The frost flask froze {n} enemies.',
-  'obs.mended': 'Your medics healed {n} HP.', 'obs.blocked': 'Your guards blocked {n} ranged damage.', 'obs.charges': 'Your lancers landed {n} charge hits.',
-  'obs.backlineDeaths': 'You lost {n} back-line units.', 'obs.explosion': 'Your squad took {n} blast damage.', 'obs.chilled': 'Your units were chilled {n} times.',
-  'obs.summary': '{alive} of {total} survived; the battle lasted {time}s.', 'obs.stoneArrows': '{n} of your arrows hit a boulder.', 'obs.firstLoss': 'First to fall: {name}, at {time}s.',
-  'tip.default': 'Try massing your squad on one side and watch who makes contact first. Move only a few units at a time so you can see what changed.',
-  'tip.spread': 'Next time: spread your units out so one blast cannot catch several of them.',
-  'tip.frontline': 'Next time: move guards and vanguards forward and your back line further back so melee meets the enemy first.',
-  'tip.chill': 'Next time: spread out, or send lancers to deal with the frost mages first.',
-  'tip.guardsWorked': 'Your guards really did soak up ranged damage. Keep the front line and fine-tune the back line to save more units.',
-  'tip.stone': 'Next time: {n} arrows hit a boulder. Move archers to a flank, or use bombers, who can lob over rock.',
-
-  'unit.knight.name': 'Vanguard', 'unit.knight.role': 'Melee fighter', 'unit.knight.good': 'Cheap and quick. Good for filling the front line and adding melee damage.', 'unit.knight.watch': 'Not very sturdy; a lone vanguard gets focused down.',
-  'unit.guard.name': 'Guard', 'unit.guard.role': 'Blocks ranged', 'unit.guard.good': 'Stands in front of the back line and takes 45% less ranged damage.', 'unit.guard.watch': 'Slow, and does not hit hard.',
-  'unit.archer.name': 'Archer', 'unit.archer.role': 'Ranged damage', 'unit.archer.good': 'Shoots steadily from the back. Hover over a placed archer to see its range.', 'unit.archer.watch': 'Arrows stop at boulders and at the first enemy in the way. Fragile in melee.',
-  'unit.bomber.name': 'Bomber', 'unit.bomber.role': 'Area damage', 'unit.bomber.good': 'Punishes clustered enemies and can lob bombs over boulders.', 'unit.bomber.watch': 'Bombs land where the target stood, so spread-out or moving enemies are hard to catch together.',
-  'unit.giant.name': 'Giant', 'unit.giant.role': 'Heavy front line', 'unit.giant.good': 'A huge pool of health for soaking damage and pushing the line forward.', 'unit.giant.watch': 'Expensive and slow, limit one per squad, and needs back-line support.',
-  'unit.lancer.name': 'Lancer', 'unit.lancer.role': 'Back-line raider', 'unit.lancer.good': 'The fastest unit. Slips past the front line to hunt the enemy back line; its first hit after a run deals 2.4× damage.', 'unit.lancer.watch': 'Dives deep and can get surrounded. Enemy guards and giants can absorb its charge.',
-  'unit.healer.name': 'Medic', 'unit.healer.role': 'Steady healing', 'unit.healer.good': 'Keeps healing the most wounded ally in range. Great with guards or a giant in a long fight.', 'unit.healer.watch': 'Cannot attack and is fragile. A squad of only medics cannot win.',
-  'unit.mage.name': 'Frost Mage', 'unit.mage.role': 'Area slow', 'unit.mage.good': 'Its orb hits an area for light damage and slows enemy movement and attacks. Lobs over boulders.', 'unit.mage.watch': 'Low damage and slow to cast; it needs allies to finish the job.',
-
-  'item.heal.name': 'Aid Flag', 'item.heal.short': 'Wounded recover 30% HP', 'item.heal.desc': 'Every living wounded unit recovers 30% of its max HP. Does not revive, and is not spent if everyone is at full health.',
-  'item.smoke.name': 'Smoke Pot', 'item.smoke.short': '-65% arrow damage for 4s', 'item.smoke.desc': 'For 4 seconds your squad takes 65% less arrow damage, stacking with guards. Does nothing against melee or bombs.',
-  'item.rally.name': 'Rally Horn', 'item.rally.short': '5s of speed and haste', 'item.rally.desc': 'For 5 seconds your squad moves 40% faster and recovers attacks 30% faster. Good for closing in or chasing.',
-  'item.thunder.name': 'Thunder Scroll', 'item.thunder.short': 'Pick a spot to strike', 'item.thunder.desc': 'During battle, click a spot on the field. A moment later lightning deals 46 damage to every enemy in the area, ignoring guard armour.',
-  'item.frost.name': 'Frost Flask', 'item.frost.short': 'Freeze all enemies 2.6s', 'item.frost.desc': 'Every enemy is frozen for 2.6 seconds and can neither move nor attack. Arrows and bombs already in the air are not affected.',
-  'item.unlockAt': 'Unlocks after level {n}', 'item.equipped': 'Equipped', 'item.pickTitle': 'Which item will you bring?', 'item.pickSub': 'Bring one. It costs no ink, you choose when to use it, and it refills on every retry.', 'item.recommend': 'Suggested here',
-
-  'codex.title': 'Codex', 'codex.units': 'Units', 'codex.items': 'Items',
-  'codex.hp': 'Health', 'codex.damage': 'Damage', 'codex.heal': 'Healing', 'codex.range': 'Range', 'codex.speed': 'Speed', 'codex.cost': 'Ink', 'codex.limit': 'Squad limit',
-  'codex.good': 'Good for', 'codex.watch': 'Watch out', 'codex.unlockAt': 'Unlocks after level {n}',
-
-  'shop.title': 'Banner Colours', 'shop.blurb': 'Changes only the colour of your squad. It never affects stats.', 'shop.equip': 'Use', 'shop.equipped': 'In use', 'shop.buy': 'Buy', 'shop.poor': 'Not enough coins',
-  'skin.blue': 'Royal Blue', 'skin.teal': 'Teal', 'skin.green': 'Meadow Green', 'skin.purple': 'Wisteria', 'skin.pink': 'Blossom', 'skin.gold': 'Gilded',
-
-  'hint.title': 'Strategist\'s Hint', 'hint.text': 'Shows a formation that won in testing without using an item ({stars} stars in testing). You only pay once per level.', 'hint.buy': 'Reveal for {n} coins', 'hint.poor': 'Not enough coins ({n} needed)',
-  'hint.apply': 'Place it for me', 'hint.show': 'Show ghosts, I will place them', 'hint.owned': 'Hint unlocked for this level', 'hint.applied': 'Formation placed — you can start the battle', 'hint.ghosts': 'The ghosts are the hint formation: click one to place it',
-
-  'daily.title': 'Daily Bounty', 'daily.locked': 'Clear 3 levels to open the daily bounty', 'daily.goal': 'Earn 3 stars on level {n} “{title}” today', 'daily.reward': 'Reward: {n} coins',
-  'daily.done': 'Today\'s bounty is done. Come back tomorrow!', 'daily.streak': '{n}-day streak', 'daily.go': 'Take it on', 'daily.reset': 'Refreshes at midnight',
-
-  'ach.title': 'Awards', 'ach.toast': 'Award earned: {name}  +{n} coins', 'ach.toastMany': '{count} awards earned  +{n} coins', 'ach.done': 'Earned',
-  'ach.first_win.name': 'First Blood', 'ach.first_win.desc': 'Win your first battle',
-  'ach.wins_10.name': 'Making a Name', 'ach.wins_10.desc': 'Win 10 battles', 'ach.wins_50.name': 'Veteran', 'ach.wins_50.desc': 'Win 50 battles',
-  'ach.chapter_1.name': 'Lord of the Meadow', 'ach.chapter_1.desc': 'Clear every level in chapter 1', 'ach.chapter_2.name': 'Canyon Conqueror', 'ach.chapter_2.desc': 'Clear every level in chapter 2',
-  'ach.chapter_3.name': 'Icebreaker', 'ach.chapter_3.desc': 'Clear every level in chapter 3', 'ach.chapter_4.name': 'The Last Stroke', 'ach.chapter_4.desc': 'Clear every level in chapter 4',
-  'ach.stars_30.name': 'First Light', 'ach.stars_30.desc': 'Earn 30 stars', 'ach.stars_60.name': 'Shining', 'ach.stars_60.desc': 'Earn 60 stars',
-  'ach.stars_90.name': 'Galaxy', 'ach.stars_90.desc': 'Earn 90 stars', 'ach.stars_all.name': 'Sky Full of Stars', 'ach.stars_all.desc': 'Earn 3 stars on every level',
-  'ach.perfect_chapter.name': 'Perfect Chapter', 'ach.perfect_chapter.desc': 'Earn 3 stars on every level of one chapter', 'ach.medals_5.name': 'Challenger', 'ach.medals_5.desc': 'Complete 5 bonus challenges',
-  'ach.all_units.name': 'Master of Arms', 'ach.all_units.desc': 'Send every unit type into battle', 'ach.all_items.name': 'Quartermaster', 'ach.all_items.desc': 'Use every item at least once',
-  'ach.flawless.name': 'Untouched', 'ach.flawless.desc': 'Win a level without losing a unit', 'ach.small_squad.name': 'Against the Odds', 'ach.small_squad.desc': 'Win a level with 3 units or fewer',
-  'ach.fast_win.name': 'Blitz', 'ach.fast_win.desc': 'Win a level within 10 seconds', 'ach.daily_3.name': 'Persistent', 'ach.daily_3.desc': 'Complete the daily bounty 3 days in a row',
-  'ach.daily_7.name': 'Rain or Shine', 'ach.daily_7.desc': 'Complete the daily bounty 7 days in a row', 'ach.skins_3.name': 'Palette', 'ach.skins_3.desc': 'Own 3 banner colours',
-  'ach.sandbox.name': 'War Games', 'ach.sandbox.desc': 'Finish a sandbox battle',
-
-  'settings.title': 'Settings', 'settings.language': 'Language', 'settings.music': 'Music', 'settings.sfx': 'Sound effects', 'settings.haptics': 'Vibration', 'settings.hapticsNA': 'Not supported in this browser',
-  'settings.reduced': 'Reduce motion', 'settings.reducedNote': 'Turns off screen shake and extra animation', 'settings.feedback': 'Playtest feedback', 'settings.reset': 'Reset all progress', 'settings.resetConfirm': 'Erase level progress, coins and colours? This cannot be undone.',
-  'settings.resetDone': 'Progress reset', 'settings.privacy': 'Single-player game: progress is stored only in this browser on this device and is never uploaded.', 'settings.version': 'Version {v}',
-  'feedback.title': 'Tell us where you got stuck', 'feedback.note': 'Saved on this device only. Nothing is uploaded; you can export and share it yourself.', 'feedback.rating': 'Was it fun?', 'feedback.choose': 'Choose',
-  'feedback.difficulty': 'How was the difficulty?', 'feedback.fair': 'Just right', 'feedback.easy': 'Too easy', 'feedback.hard': 'Too hard', 'feedback.comment': 'What was confusing, frustrating or fun?', 'feedback.placeholder': 'e.g. I could not tell why my arrows were not firing',
-  'feedback.save': 'Save feedback on this device', 'feedback.saved': 'Saved on this device. Use the button below to export it.', 'feedback.unsaved': 'The browser could not save it. Please export now.', 'feedback.off': 'Recording is off. Turn it on to save feedback.',
-  'feedback.record': 'Record play sessions on this device', 'feedback.summary': '{battles} battle results and {feedback} feedback notes stored; 500 events at most.', 'feedback.export': 'Export play data (JSON)', 'feedback.clear': 'Delete play data on this device', 'feedback.cleared': 'Play data deleted. Levels and formations are kept.',
-
-  'guide.skip': 'Hide',
-  'guide.front.title': '1 / 4 · Place two front-liners', 'guide.front.text': 'Drag the Guard to the front (right side) of the blue zone, or just click a ghost.',
-  'guide.rear.title': '2 / 4 · Add two archers', 'guide.rear.text': 'Put two archers behind the guards so the front protects the back.',
-  'guide.move.title': '3 / 4 · Adjust a position', 'guide.move.text': 'Drag any unit to a new spot. Moving never costs extra ink.',
-  'guide.start.title': '4 / 4 · See how it plays', 'guide.start.text': 'Spend leftover ink if you like, then click “Fight!” or press Space.',
-  'guide.inspect.title': 'Shield Wall · look first', 'guide.inspect.text': 'Hover over a placed unit to see its range and route.',
-  'guide.mix.title': 'Try a mixed squad', 'guide.mix.text': 'Enemy guards shrug off arrows. Add melee and compare the result.',
-  'guide.wall.title': 'Watch the wall break', 'guide.wall.text': 'Start the battle. If you lose, your formation stays, so change one thing at a time.',
-  'guide.blast.title': 'New unit · Bomber', 'guide.blast.text': 'The enemy bunches up in the middle. Add a bomber and let your front line hold them.',
-  'guide.item.title': 'Pick an item', 'guide.item.text': 'Pick an item in the right panel. You can use it once per battle.',
-  'guide.area.title': 'Watch the blast', 'guide.area.text': 'See where the bombs land and check the bomber\'s damage in the review.',
-  'guide.cover.title': 'Boulder Guard · check routes', 'guide.cover.text': 'Hover over a unit to see how it walks around. If an archer is blocked, drag it to a flank or give it a route.',
-  'guide.lancer.title': 'New unit · Lancer', 'guide.lancer.text': 'Lancers slip past the front line to hunt the back line, and the first hit after a run hurts.',
-  'guide.thunder.title': 'New item · Thunder Scroll', 'guide.thunder.text': 'Equip it in the item slot. In battle, click the item (or press R) and then a spot on the field.',
-  'guide.healer.title': 'New unit · Medic', 'guide.healer.text': 'Medics heal wounded allies in range. Keep one behind your front line.',
-  'guide.mage.title': 'New unit · Frost Mage', 'guide.mage.text': 'Its orb hits an area and slows enemies, which is great against a charge.',
-  'guide.frost.title': 'New item · Frost Flask', 'guide.frost.text': 'Freezes every enemy for 2.6 seconds. Save it for when they reach you.',
-
-  'spot.rear.goal': 'Protect the rear', 'spot.rear.desc': 'Win with at least one archer deployed and every archer alive.',
-  'spot.mixed.goal': 'Mixed squad', 'spot.mixed.desc': 'Win using at least two unit types.',
-  'spot.blast.goal': 'Area damage', 'spot.blast.desc': 'Win with a bomber that actually dealt damage.',
-  'spot.sight.goal': 'Clean shots', 'spot.sight.desc': 'Win with archers who fired and never hit a boulder.',
-  'spot.teamwork.goal': 'Teamwork', 'spot.teamwork.desc': 'Win using at least three unit types with three or more survivors.',
-  'spot.intact.goal': 'In one piece', 'spot.intact.desc': 'Win with at least 5 survivors.',
-  'spot.swift.goal': 'Swift victory', 'spot.swift.desc': 'Win within 25 seconds.',
-  'spot.bare.goal': 'No items', 'spot.bare.desc': 'Win without using an item.',
-
-  'toast.storage': 'Local storage is unavailable; progress may not be saved', 'toast.welcomeBack': 'Your earlier progress has been restored', 'toast.lang': 'Switched to English'
-};
-
-Object.assign(zh, MORE.zh); Object.assign(en, MORE.en);
-export const STRINGS = { zh, en };
-export const LANGUAGES = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }];
-let current = 'zh';
-export function setLang(lang) { if (STRINGS[lang]) current = lang; return current; }
-export const lang = () => current;
-// 根据浏览器语言猜一个默认值：中文环境用中文，其余用英文。
-export function detectLang(languages = globalThis.navigator?.languages || [globalThis.navigator?.language || 'en']) {
-  return (languages[0] || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
-}
+Object.assign(zh, MORE);
+export const STRINGS = zh;
 export function t(key, params = {}) {
-  const text = STRINGS[current][key] ?? STRINGS.zh[key] ?? key;
+  const text = zh[key] ?? key;
   return text.replace(/\{(\w+)\}/g, (m, name) => (params[name] !== undefined ? params[name] : m));
 }
-// 取关卡数据里 { zh, en } 形式的文字。
-export const pick = value => (value && typeof value === 'object' ? value[current] ?? value.zh ?? '' : value ?? '');
+// 关卡、阵型数据里的文字：字符串原样返回，没有就是空字符串。
+export const pick = value => (value && typeof value === 'object' ? value.zh ?? '' : value ?? '');

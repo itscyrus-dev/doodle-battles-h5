@@ -1,5 +1,5 @@
 // 战斗界面（电脑版）：布阵、行军路线、开战、道具、引导和结算。战役、沙盒和远征共用；模拟在 engine.mjs。
-import { Battle } from './engine.mjs';
+import { Battle, TACTICS } from './engine.mjs';
 import { TYPES, LEVELS, CHAPTERS, ITEMS, UNIT_ORDER, ITEM_ORDER, TEAM_LIMIT, W, H, TIME_LIMIT, starsFor, unitUnlocked, itemUnlocked } from './data.mjs';
 import { Renderer, paintUnit } from './render.mjs';
 import { PALETTES } from './assets.mjs';
@@ -10,7 +10,9 @@ import { FrameSamples } from './playtest.mjs';
 import { draftOf, applyDraft } from './drafts.mjs';
 import { recordBattle, recordRunBattle, buyHint, HINT_COST, REWARDS } from './meta.mjs';
 import { SOLUTIONS } from './solutions.mjs';
-import { battleOf, finishBattle, itemsOf } from './run.mjs';
+import { battleOf, finishBattle, canExtraDraw, extraDraw, canMulligan, mulligan } from './run.mjs';
+import { HAND } from './cards.mjs';
+import { cardName, kwName, cardText, cardArt } from './card-view.mjs';
 import { BOSSES } from './encounters.mjs';
 import { t, pick } from './i18n.mjs';
 import * as audio from './audio.mjs';
@@ -20,12 +22,13 @@ const el = id => document.getElementById(id);
 const unitName = type => t(`unit.${type}.name`);
 const itemName = id => t(`item.${id}.name`);
 const TOOLS = [['deploy', 'pen', 'Q'], ['route', 'route', 'W'], ['erase', 'eraser', 'E']];
-
 export function createBattle(app) {
   const renderer = new Renderer(el('arena'));
   renderer.unitName = unitName;
   let g = new Battle(0), mode = 'campaign', ctx = null, selected = 'knight', shown = false, beat = null, targeting = false, quotaTeam = 0, hintOn = false;
-  let running = false, loop = 0, prev = 0, acc = 0, uiClock = 0, lastGuideKey = '', frameSamples = new FrameSamples(), speed = 1, runItem = undefined;
+  let running = false, loop = 0, prev = 0, acc = 0, uiClock = 0, lastGuideKey = '', frameSamples = new FrameSamples(), speed = 1;
+  // 卡牌模式（远征）：armed 是选中准备放下的兵牌，used 是这一场已经打出的战术牌，casting 是正在选落点的战术牌。
+  let armed = null, casting = null; const used = new Set();
   // 换关期间旧的 g 还在，这时刷新界面会把旧阵容存进新模式的草稿里，所以先挡住。
   let resetting = false;
   const lessonFlags = new Map(), lastAttempts = new Map();
@@ -69,25 +72,104 @@ export function createBattle(app) {
 
   // ---------- 左栏：三支笔和兵种卡 ----------
   function buildTools() {
-    el('b-tools').innerHTML = TOOLS.map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(`tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
+    el('b-tools').innerHTML = TOOLS.filter(([id]) => !(inRun() && id === 'erase')).map(([id, ic, key]) => `<button class="tool ${id} ${input.tool === id ? 'on' : ''}" data-tool="${id}" ${tipAttrs(`${t(`tool.${id}`)} · ${key}`, t(inRun() && id === 'deploy' ? 'tool.deploy.tipCards' : `tool.${id}.tip`))}>${icon(ic)}<span>${esc(t(`tool.${id}`))}</span><kbd>${key}</kbd></button>`).join('');
     for (const b of $$('[data-tool]', el('b-tools'))) b.onclick = () => setTool(b.dataset.tool);
   }
   function setTool(tool) { input.setTool(tool); for (const b of $$('[data-tool]', el('b-tools'))) b.classList.toggle('on', b.dataset.tool === tool); update(); }
   function rosterTypes() {
-    if (inRun()) return UNIT_ORDER.filter(type => run().deck.includes(type));
     const unlocked = save().unlocked, types = UNIT_ORDER.filter(type => unitUnlocked(type, unlocked));
     if (mode === 'sandbox') return types;
     const teaser = UNIT_ORDER.find(type => !unitUnlocked(type, unlocked));
     return teaser ? [...types, teaser] : types;
   }
+  // ---------- 卡牌模式：手牌 ----------
+  const handCards = () => ctx?.hand || [];
+  const playedCards = () => new Set(g.plan.filter(u => u.card !== undefined).map(u => u.card));
+  function buildHand() {
+    el('roster').className = 'roster hand';
+    el('roster').innerHTML = handCards().map((c, i) => `<button class="hcard ${c.kind} ${c.up ? 'up' : ''}" data-hand="${c.index}" ${tipAttrs(`${cardName(c.id)}${c.up ? '+' : ''}`, cardText(c))}>
+        <span class="key"><kbd>${i + 1}</kbd></span><span class="art">${cardArt(c)}</span>
+        <span class="body"><b>${esc(cardName(c.id))}${c.up ? '+' : ''}</b><small>${c.kind === 'unit' ? `${esc(t(`unit.${c.type}.name`))} ×${c.n}` : esc(t('card.tactic'))}</small>${c.kw?.length ? `<i>${c.kw.map(k => esc(kwName(k))).join(' · ')}</i>` : ''}</span>
+        <span class="cost ${c.kind}">${c.kind === 'unit' ? img('icons/ink.webp') : img('icons/momentum.webp')}${c.cost}</span><span class="state"></span></button>`).join('');
+    for (const cv of $$('canvas[data-unit]', el('roster'))) paintUnit(cv, cv.dataset.unit, save().skin);
+    for (const b of $$('[data-hand]', el('roster'))) b.onclick = () => useCard(+b.dataset.hand);
+    el('b-handbar').hidden = false;
+    el('b-handbar').innerHTML = `<button class="btn btn-paper small" id="b-extra"></button><button class="btn btn-paper small" id="b-mull"></button><span class="deck"></span>`;
+    el('b-extra').onclick = () => { if (g.phase !== 'build' || !canExtraDraw(run())) return; disarm(); extraDraw(run()); app.persist(); const plan = currentDraft(); reset(g.level, false, plan); audio.sfx('pickup'); };
+    el('b-mull').onclick = () => { if (g.phase !== 'build' || !canMulligan(run()) || playedCards().size) return; disarm(); mulligan(run()); app.persist(); reset(g.level, false, []); audio.sfx('pickup'); toast(t('hand.mulliganDone')); };
+  }
+  function disarm() { armed = null; input.arm(null); }
+  // 点一张牌：布阵时兵牌是“选中 / 收回”，开战后战术牌是“打出”。
+  function useCard(index) {
+    const c = handCards().find(h => h.index === index); if (!c) return;
+    if (g.phase === 'build') {
+      if (c.kind === 'tactic') { toast(t('hand.waiting')); audio.sfx('invalid'); return; }
+      if (playedCards().has(index)) { g.recallCard(index); disarm(); input.prune(); audio.sfx('recycle'); update(); return; }
+      if (armed?.card === index) { disarm(); update(); return; }
+      if (g.remaining < c.cost) { toast(t('err.ink')); audio.sfx('invalid'); return; }
+      armed = { card: index, type: c.type, n: c.n, kw: c.kw, ink: c.cost }; input.arm(armed); input.setTool('deploy'); audio.sfx('pickup'); update(); return;
+    }
+    if (g.phase !== 'battle' || c.kind !== 'tactic' || used.has(index)) return;
+    if (g.momentum < c.cost) { toast(t('hand.need', { n: c.cost - g.momentum })); audio.sfx('invalid'); return; }
+    if (c.targeted) { casting = c; targeting = true; update(); return; }
+    cast(c);
+  }
+  function cast(c, point = null) {
+    if (!g.cast(c.effect, { up: c.up, cost: c.cost, point })) { toast(t('hand.noEffect')); audio.sfx('invalid'); return false; }
+    used.add(c.index); casting = null; targeting = false; renderer.reticle = null;
+    app.metrics.record('tactic_cast', { effect: c.effect, seconds: g.elapsed });
+    audio.sfx('item'); buzz(20, true); update(); return true;
+  }
+  // 点战场放下选中的兵牌：整队按队形排好，放完自动选中这一队，方便接着画路线。
+  function stamp(point) {
+    if (!armed || g.phase !== 'build') return;
+    const error = g.placeSquad(armed, Math.round(point.x), Math.round(point.y));
+    if (error) { say(error); audio.sfx('invalid'); buzz(18); return; }
+    const card = armed.card; disarm();
+    input.setSelection(g.plan.filter(u => u.card === card).map(u => u.pid));
+    audio.sfx('place'); buzz(8); el('b-inkpill').classList.remove('bump'); void el('b-inkpill').offsetWidth; el('b-inkpill').classList.add('bump');
+    app.metrics.record('card_play', { card: handCards().find(h => h.index === card)?.id }); update();
+  }
+  const currentDraft = () => g.plan.filter(u => u.team === 0 && u.card !== undefined).map(u => ({ card: u.card, type: u.type, x: u.x, y: u.y, ...(u.route ? { route: u.route.map(p => ({ x: p.x, y: p.y })) } : {}), ...(u.hold ? { hold: true } : {}) }));
+  // 读档或重打时，按存好的位置把打出过的牌放回去，路线和驻守也恢复。
+  function restoreDraft(draft) {
+    const byCard = new Map();
+    for (const u of draft || []) { if (!byCard.has(u.card)) byCard.set(u.card, []); byCard.get(u.card).push(u); }
+    for (const [card, units] of byCard) {
+      const c = handCards().find(h => h.index === card); if (!c || c.kind !== 'unit') continue;
+      if (g.placeSquad({ card, type: c.type, n: c.n, kw: c.kw, ink: c.cost }, units[0].x, units[0].y, 0, units.map(u => ({ x: u.x, y: u.y })))) continue;
+      g.plan.filter(u => u.card === card).forEach((u, i) => units[i] && g.applyOrders(u.pid, units[i]));
+    }
+    g.history = [];
+  }
+  function refreshHand() {
+    const build = g.phase === 'build', played = playedCards();
+    for (const b of $$('[data-hand]', el('roster'))) {
+      const c = handCards().find(h => h.index === +b.dataset.hand); if (!c) continue;
+      const isPlayed = played.has(c.index), short = c.kind === 'unit' ? !isPlayed && c.cost > g.remaining : c.cost > g.momentum;
+      b.classList.toggle('armed', armed?.card === c.index); b.classList.toggle('played', c.kind === 'unit' && isPlayed);
+      b.classList.toggle('short', build ? c.kind === 'unit' && short : c.kind === 'tactic' && !used.has(c.index) && short);
+      b.classList.toggle('used', !build && used.has(c.index)); b.classList.toggle('waiting', build ? c.kind === 'tactic' : c.kind === 'unit');
+      b.classList.toggle('ready', !build && c.kind === 'tactic' && !used.has(c.index) && !short);
+      b.querySelector('.state').textContent = build ? (isPlayed ? t('hand.played') : c.kind === 'tactic' ? t('hand.waiting') : '') : c.kind === 'tactic' ? (used.has(c.index) ? t('hand.used') : short ? t('hand.need', { n: c.cost - g.momentum }) : '') : '';
+    }
+    const r = run();
+    const left = HAND.extraMax - r.extra, deckLine = $('.deck', el('b-handbar'));
+    if (deckLine) deckLine.textContent = t('hand.deck', { n: r.deck.length, left });
+    if (el('b-extra')) { Object.assign(el('b-extra').dataset, { tipTitle: t('hand.extraTitle'), tip: t('hand.extraTip', { n: HAND.extraCost, left }) }); el('b-extra').textContent = t('hand.extra', { n: HAND.extraCost }); el('b-extra').disabled = !build || !canExtraDraw(r) || g.remaining < HAND.extraCost; }
+    if (el('b-mull')) { Object.assign(el('b-mull').dataset, { tipTitle: t('hand.mulligan'), tip: t('hand.mulliganTip') }); el('b-mull').textContent = r.mulligan ? t('hand.mulliganUsed') : t('hand.mulligan'); el('b-mull').disabled = !build || !canMulligan(r) || played.size > 0; }
+  }
+
   function buildRoster() {
-    const unlocked = save().unlocked, elite = inRun() ? new Set(run().upgrades) : new Set();
+    if (inRun()) { buildHand(); return; }
+    el('roster').className = 'roster'; el('b-handbar').hidden = true;
+    const unlocked = save().unlocked;
     el('roster').innerHTML = rosterTypes().map((type, i) => {
       const locked = !inRun() && !unitUnlocked(type, unlocked), d = TYPES[type];
       const fresh = campaign() && !locked && d.unlock === g.level && d.unlock > 0 && !save().stars[g.level];
-      const tipBody = `${t(`unit.${type}.role`)} · ${t(`unit.${type}.good`)}${elite.has(type) ? `\n${t('upgrade.badge')}：${t(`upgrade.${type}`)}` : ''}`;
+      const tipBody = `${t(`unit.${type}.role`)} · ${t(`unit.${type}.good`)}`;
       return `<button class="card ${locked ? 'locked' : ''} ${fresh ? 'is-new' : ''}" data-type="${type}" data-new="${esc(t('common.new'))}" ${locked ? 'disabled' : ''} ${tipAttrs(locked ? '???' : unitName(type), locked ? t('battle.unitLocked', { n: d.unlock + 1 }) : tipBody)}>
-        ${locked ? '' : `<span class="key"><kbd>${i + 1}</kbd></span><span class="quota">0/${g.limit(type)}</span>`}${elite.has(type) ? '<span class="elite">★</span>' : ''}
+        ${locked ? '' : `<span class="key"><kbd>${i + 1}</kbd></span><span class="quota">0/${g.limit(type)}</span>`}
         <canvas width="104" height="104"></canvas><strong>${esc(locked ? '???' : unitName(type))}</strong>
         ${mode === 'sandbox' && !locked ? '' : `<small class="cost">${locked ? `${icon('lock')}${d.unlock + 1}` : `${img('icons/ink.webp')}${g.cost(type)}`}</small>`}</button>`;
     }).join('');
@@ -111,13 +193,9 @@ export function createBattle(app) {
   function buildLoadout() {
     const box = el('b-loadout');
     if (inRun()) {
-      const r = run(), items = itemsOf(r);
+      const r = run();
       const relics = r.relics.map(id => `<span class="relic" ${tipAttrs(t(`relic.${id}`), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('');
-      box.innerHTML = `<h4>${esc(t('loadout.title'))}</h4><div class="items-row">
-          <button class="item-chip none ${!g.selectedItem ? 'on' : ''}" data-runitem="" ${tipAttrs(t('loadout.none'), t('loadout.noneDesc'))}>${esc(t('loadout.none'))}</button>
-          ${items.map(id => `<button class="item-chip ${g.selectedItem === id ? 'on' : ''}" data-runitem="${id}" ${tipAttrs(itemName(id), `${t(`item.${id}.desc`)}\n${t('loadout.count', { n: r.items[id] })} · ${t('loadout.runNote')}`)}>${img(`icons/item-${id}.webp`)}<b>${r.items[id]}</b></button>`).join('')}</div>
-        ${r.relics.length ? `<h4>${esc(t('relics.title'))}</h4><div class="relic-row">${relics}</div>` : ''}`;
-      for (const b of $$('[data-runitem]', box)) b.onclick = () => { runItem = b.dataset.runitem || null; g.selectItem(runItem); buildLoadout(); update(); };
+      box.innerHTML = `<h4>${esc(t('momentum.name'))}</h4><p class="muted">${esc(t('momentum.tip'))}</p>${r.relics.length ? `<h4>${esc(t('relics.title'))}</h4><div class="relic-row">${relics}</div>` : ''}`;
       return;
     }
     const item = g.selectedItem;
@@ -128,15 +206,16 @@ export function createBattle(app) {
   }
   function buildKeys() {
     const row = (label, ...keys) => `<div class="row"><span>${esc(label)}</span><span>${keys.map(k => `<kbd>${esc(k)}</kbd>`).join('')}</span></div>`;
-    el('b-keys').innerHTML = `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.paint'), t('mouse.left'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.clear'), t('mouse.rightClick'))}${row(t('keys.hold'), 'H')}${row(t('keys.tools'), 'Q', 'W', 'E')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`;
+    el('b-keys').innerHTML = inRun()
+      ? `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.cards'), '1–9')}${row(t('keys.stamp'), t('mouse.leftClick'))}${row(t('keys.recall'), t('keys.recallKey'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.hold'), 'H')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`
+      : `<h4>${esc(t('keys.title'))}</h4>${row(t('keys.paint'), t('mouse.left'))}${row(t('keys.route'), t('mouse.right'))}${row(t('keys.clear'), t('mouse.rightClick'))}${row(t('keys.hold'), 'H')}${row(t('keys.tools'), 'Q', 'W', 'E')}${row(t('keys.start'), 'Space')}${row(t('keys.undo'), 'Ctrl+Z')}`;
   }
 
   // ---------- 进入、重置 ----------
   function newBattle(level, sandbox) {
     if (inRun()) {
       ctx = battleOf(run());
-      if (runItem === undefined || (runItem && !(run().items[runItem] > 0))) runItem = itemsOf(run())[0] ?? null;
-      return new Battle(ctx.def, { mods: ctx.mods, item: runItem });
+      return new Battle(ctx.def, { mods: ctx.mods, item: null, cards: true, momentum: ctx.momentum });
     }
     ctx = null;
     return new Battle(level, sandbox);
@@ -144,15 +223,15 @@ export function createBattle(app) {
   function reset(level = g.level, sandbox = g.sandbox, plan = null) {
     resetting = true;
     input.cancel(); input.selection.clear(); renderer.selectedPid = null; renderer.hoverPid = null; renderer.reticle = null; renderer.clearEffects(); targeting = false; hintOn = false;
+    armed = null; casting = null; used.clear(); input.arm(null);
     g = newBattle(level, sandbox);
     if (!inRun()) g.selectItem(itemUnlocked(save().item, save().unlocked) ? save().item : 'heal');
-    if (inRun()) applyDraft(g, plan ?? run().draft);
+    if (inRun()) restoreDraft(plan ?? run().draft);
     else { g.plan = structuredClone(plan ?? (!sandbox ? save().formations[level] || [] : [])); for (const u of g.plan) u.pid ??= g.serial++; }
     g.serial = Math.max(0, ...g.plan.map(u => (u.pid ?? -1) + 1));
     globalThis.__game = g;
     shown = false; beat = null; quotaTeam = 0; speed = save().settings.speed;
     renderer.setTheme(inRun() ? ctx.encounter.theme : sandbox ? 'meadow' : CHAPTERS[LEVELS[level].chapter].id); renderer.skin = save().skin;
-    renderer.elite = inRun() ? new Set(run().upgrades) : null;
     if (campaign()) { save().currentLevel = level; app.persist(); if (level === 0 && !save().guides[0]) selected = 'guard'; }
     el('panel-build').hidden = false; el('panel-fight').hidden = true; el('b-left').classList.remove('locked');
     app.metrics.record('level_enter', { level: level + 1, sandbox, run: inRun() });
@@ -162,7 +241,6 @@ export function createBattle(app) {
   }
   function enter({ level = 0, sandbox = false, plan = null, run: isRun = false } = {}) {
     mode = isRun ? 'run' : sandbox ? 'sandbox' : 'campaign';
-    if (isRun) runItem = undefined;
     app.show('battle');
     reset(level, sandbox, plan);
     renderer.resize();
@@ -172,7 +250,7 @@ export function createBattle(app) {
   function checkpoint() {
     if (g.phase !== 'build' || mode === 'sandbox') return;
     const draft = draftOf(g);
-    if (inRun()) { const stored = run().draft; if (JSON.stringify(draft.map(({ team, ...u }) => u)) !== JSON.stringify(stored)) { run().draft = draft.map(({ team, ...u }) => u); app.persist(); } return; }
+    if (inRun()) { const now = currentDraft(); if (JSON.stringify(now) !== JSON.stringify(run().draft)) { run().draft = now; app.persist(); } return; }
     const stored = (save().formations[g.level] || []).map(({ pid, ...u }) => u);
     if (JSON.stringify(draft) !== JSON.stringify(stored)) { save().formations[g.level] = draft; app.persist(); }
   }
@@ -180,6 +258,7 @@ export function createBattle(app) {
   // ---------- 引导 ----------
   function updateGuide() {
     let step = campaign() && !save().guides[g.level] ? guideStep(g, flags()) : null;
+    if (!step && inRun() && !save().tips.runcards && !g.plan.some(u => u.team === 0)) step = { id: 'runcards', title: 'guide.runcards.title', text: 'guide.runcards.text', target: 'roster' };
     if (!step && inRun() && !save().tips.runroute && g.plan.some(u => u.team === 0) && !g.plan.some(u => u.route)) step = { id: 'runroute', title: 'guide.runroute.title', text: 'guide.runroute.text', target: 'route' };
     el('coach').hidden = !step;
     const hint = hintOn && campaign() ? SOLUTIONS[g.level].plan.map(([type, x, y]) => ({ type, x, y, team: 0 })) : [];
@@ -198,6 +277,7 @@ export function createBattle(app) {
     if (input.selection.size) return t('battle.tip.selected', { n: input.selection.size });
     if (input.tool === 'route') return t('battle.tip.route');
     if (mode === 'sandbox') return t('battle.tip.sandbox');
+    if (inRun()) { const c = armed && handCards().find(h => h.index === armed.card); return c ? t('battle.tip.armed', { name: cardName(c.id, c.up) }) : t('battle.tip.cards'); }
     return g.plan.length ? `${unitName(selected)} · ${t(`unit.${selected}.role`)}` : t('battle.tip.build');
   }
   function update() {
@@ -206,7 +286,8 @@ export function createBattle(app) {
     const build = g.phase === 'build', lesson = build ? updateGuide() : (el('coach').hidden = true, null);
     el('b-ink').textContent = mode === 'sandbox' ? '∞' : g.remaining; el('b-inkmax').textContent = mode === 'sandbox' ? '' : `/${g.budget}`;
     el('b-inkpill').classList.toggle('low', mode !== 'sandbox' && build && g.remaining < 10);
-    el('b-status').innerHTML = inRun() ? `<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span><span class="pill">${img('icons/coin.webp')}${run().coins}</span>` : '';
+    el('b-status').innerHTML = inRun() ? `<span class="momentum ${build ? '' : 'live'}" ${tipAttrs(t('momentum.name'), t('momentum.tip'))}>${img('icons/momentum.webp')}<b>${g.momentum}</b>/${ctx.momentum.max}</span><span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span><span class="pill">${img('icons/coin.webp')}${run().coins}</span>` : '';
+    if (inRun()) { if (!build && armed) disarm(); refreshHand(); }
 
     const list = build ? [...g.plan, ...(mode === 'sandbox' ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
     const blue = list.filter(u => !u.team).length, red = list.filter(u => u.team).length;
@@ -228,10 +309,10 @@ export function createBattle(app) {
     el('b-alert').hidden = !feedback || targeting;
     if (feedback) {
       el('b-alert').className = feedback.kind;
-      el('b-alert').textContent = feedback.kind === 'rear' ? `! ${t('feedback.rear')}` : feedback.kind === 'item-end' ? t('feedback.itemEnd', { name: itemName(feedback.item) })
+      el('b-alert').textContent = feedback.kind === 'rear' ? `! ${t('feedback.rear')}` : feedback.kind === 'tactic' ? t('feedback.item', { name: cardName(`t_${feedback.effect}`) }) : feedback.kind === 'item-end' ? t('feedback.itemEnd', { name: itemName(feedback.item) })
         : feedback.item === 'heal' ? t('feedback.heal', { targets: feedback.targets, amount: Math.round(feedback.amount) }) : t('feedback.item', { name: itemName(feedback.item) });
     }
-    el('b-target').hidden = !(targeting && g.phase === 'battle'); el('b-target').textContent = t('battle.item.target');
+    el('b-target').hidden = !(targeting && g.phase === 'battle'); el('b-target').textContent = casting ? t(`tactic.${casting.effect}.target`) : t('battle.item.target');
     el('arena').classList.toggle('targeting', targeting);
     el('b-tip').hidden = !build || !!lesson || !!inspection;
     el('b-tip').textContent = tipText(lesson);
@@ -240,12 +321,12 @@ export function createBattle(app) {
     el('b-start').disabled = !g.plan.some(u => u.team === 0) || (mode === 'sandbox' && !g.plan.some(u => u.team === 1));
     el('b-start').innerHTML = `${esc(t('battle.start'))} <kbd>Space</kbd>`;
     el('b-undo').disabled = !g.history.length || !build; el('b-clear').disabled = !g.plan.length || !build;
-    el('b-left').classList.toggle('locked', !build);
+    el('b-left').classList.toggle('locked', !build && !inRun());
 
     if (!build) {
       const item = ITEMS[g.selectedItem], active = item ? g.effects[g.selectedItem] || 0 : 0, use = el('b-use'), ready = g.phase === 'battle' && g.canUseItem;
-      use.hidden = !g.selectedItem;
-      if (g.selectedItem) {
+      use.hidden = !g.selectedItem || inRun();
+      if (g.selectedItem && !inRun()) {
         use.disabled = !ready; use.classList.toggle('ready', ready && !targeting); use.classList.toggle('targeting', targeting);
         const status = targeting ? t('battle.item.target') : g.itemUsed ? (active > 0 ? t('battle.item.active', { n: active.toFixed(1) }) : t('battle.item.used')) : g.selectedItem === 'heal' && !g.canHeal && g.phase === 'battle' ? t('battle.item.none') : t('battle.item.use');
         use.innerHTML = `<span class="art">${img(`icons/item-${g.selectedItem}.webp`)}${active > 0 ? `<i class="ring" style="--left:${(active / item.duration * 100).toFixed(0)}%"></i>` : ''}</span><span><b>${esc(itemName(g.selectedItem))}</b><small>${esc(status)}</small></span>`;
@@ -269,7 +350,7 @@ export function createBattle(app) {
 
   // ---------- 布阵手势 ----------
   const input = new FormationInput({
-    canvas: el('arena'), roster: el('roster'), recycle: el('recycle'), renderer, getGame: () => g, getSelection: () => ({ type: selected }),
+    canvas: el('arena'), roster: el('roster'), recycle: el('recycle'), renderer, getGame: () => g, getSelection: () => ({ type: selected }), onStamp: point => stamp(point),
     select: type => { if (selected !== type || input.tool !== 'deploy') { selected = type; if (input.tool === 'erase') setTool('deploy'); audio.sfx('pickup'); } }, say,
     onChange: (event, team, detail = {}) => {
       if (event === 'move') flags().moved = true;
@@ -278,7 +359,7 @@ export function createBattle(app) {
       if (event === 'route' && inRun() && !save().tips.runroute) { save().tips.runroute = true; app.persist(); }
       if (team !== undefined && team !== null) quotaTeam = team;
       if (event === 'place') { audio.sfx('place'); buzz(8); el('b-inkpill').classList.remove('bump'); void el('b-inkpill').offsetWidth; el('b-inkpill').classList.add('bump'); }
-      if (event === 'remove' || event === 'erase') audio.sfx('recycle');
+      if (event === 'remove' || event === 'erase' || event === 'recall') audio.sfx('recycle');
       if (event === 'move') audio.sfx('place');
       if (event === 'route') audio.sfx('pickup');
       if (event === 'orders') audio.sfx('undo');
@@ -296,11 +377,11 @@ export function createBattle(app) {
 
   // ---------- 按钮 ----------
   el('coach-skip').onclick = () => {
-    if (inRun()) save().tips.runroute = true; else save().guides[g.level] = true;
+    if (inRun()) { if (!g.plan.some(u => u.team === 0)) save().tips.runcards = true; else save().tips.runroute = true; } else save().guides[g.level] = true;
     app.metrics.record('guide_skip', { level: g.level + 1 }); app.persist(); update();
   };
-  el('b-undo').onclick = () => { g.undo(); input.prune(); audio.sfx('undo'); update(); };
-  el('b-clear').onclick = () => { g.clear(); input.setSelection([]); audio.sfx('recycle'); update(); };
+  el('b-undo').onclick = () => { g.undo(); input.prune(); disarm(); audio.sfx('undo'); update(); };
+  el('b-clear').onclick = () => { g.clear(); input.setSelection([]); disarm(); audio.sfx('recycle'); update(); };
   el('b-autofill').onclick = () => {
     g.beginStroke();
     for (const [type, x, y] of [['guard', 305, 170], ['guard', 305, 300], ['knight', 305, 430], ['archer', 200, 150], ['archer', 200, 290]]) g.place(type, x, y);
@@ -315,12 +396,14 @@ export function createBattle(app) {
   }
   function removeSelection() {
     if (!input.selection.size) return;
+    // 卡牌模式：选中的士兵所在的牌整张收回。
+    if (g.cardMode) { const cards = new Set(g.plan.filter(u => input.selection.has(u.pid)).map(u => u.card)); if (!cards.size) return; g.beginStroke(); g.plan = g.plan.filter(u => !cards.has(u.card)); input.setSelection([]); audio.sfx('recycle'); update(); return; }
     g.beginStroke(); const before = g.plan.length;
     g.plan = g.plan.filter(u => !input.selection.has(u.pid));
     if (g.plan.length !== before) { input.setSelection([]); audio.sfx('recycle'); update(); } else g.history.pop();
   }
   function startBattle() {
-    input.cancel(); const step = campaign() ? guideStep(g, flags()) : null;
+    input.cancel(); disarm(); const step = campaign() ? guideStep(g, flags()) : null;
     if (!g.start()) return;
     frameSamples = new FrameSamples(); renderer.selectedPid = null; renderer.hoverPid = null; hintOn = false; input.setSelection([]);
     el('panel-build').hidden = true; el('panel-fight').hidden = false;
@@ -363,9 +446,10 @@ export function createBattle(app) {
     if (beat && !shown) { showResult(); return; }
     if (!targeting || g.phase !== 'battle' || e.button !== 0) return;
     const p = renderer.point(e); if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) return;
+    if (casting) { cast(casting, p); return; }
     if (g.useItem(p)) { targeting = false; renderer.reticle = null; app.metrics.record('item_used', { level: g.level + 1, sandbox: g.sandbox, item: g.selectedItem, seconds: g.elapsed }); audio.sfx('item'); buzz(15, true); update(); }
   });
-  el('arena').addEventListener('pointermove', e => { if (targeting && g.phase === 'battle') { const p = renderer.point(e); renderer.reticle = { x: p.x, y: p.y, r: ITEMS[g.selectedItem].radius || 60 }; } });
+  el('arena').addEventListener('pointermove', e => { if (targeting && g.phase === 'battle') { const p = renderer.point(e); renderer.reticle = { x: p.x, y: p.y, r: casting ? (casting.effect === 'thunder' ? TACTICS.thunder.radius : 40) : ITEMS[g.selectedItem].radius || 60 }; } });
 
   // ---------- 弹窗：道具、锦囊、暂停 ----------
   function openItems() {
@@ -432,11 +516,12 @@ export function createBattle(app) {
     audio.music(null); audio.sfx(won ? 'won' : 'lost'); buzz(won ? [18, 50, 30] : 70, true);
     if (inRun()) {
       const kind = ctx.node.kind, kills = g.units.filter(u => u.team === 1 && u.hp <= 0).length;
-      const result = finishBattle(run(), { won, survivors, deployed, stars: starsFor(g), kills, itemUsed: g.itemUsed ? g.selectedItem : null, plan: g.plan });
+      const feats = featsOf(g);
+      const result = finishBattle(run(), { won, survivors, deployed, stars: starsFor(g), kills, tactics: used.size, plan: g.plan });
       const achievements = recordRunBattle(save(), g, kind);
       app.persist(); app.announce(achievements);
-      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, item: g.selectedItem });
-      return { review, survivors, deployed, comparison, won, result, kind, timeout: !won && g.elapsed >= TIME_LIMIT };
+      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, cards: playedCards().size, tactics: used.size });
+      return { review, survivors, deployed, comparison, won, result, kind, feats, timeout: !won && g.elapsed >= TIME_LIMIT };
     }
     const spotlight = campaign() ? SPOTLIGHTS[g.level] : null, medalNow = !!spotlight?.check(g), hadMedal = !!save().medals[g.level];
     const summary = recordBattle(save(), g, { medal: medalNow });
@@ -452,8 +537,22 @@ export function createBattle(app) {
       ${review.rows.length ? `<table class="units"><thead><tr><th>${esc(t('result.tableUnit'))}</th><th>${esc(t('result.tableDealt'))}</th><th>${esc(t('result.tableTaken'))}</th><th>${esc(t('result.tableAlive'))}</th></tr></thead><tbody>${review.rows.map(r => `<tr><td>${esc(unitName(r.type))}</td><td>${r.healed > 0 ? `+${Math.round(r.healed)}` : Math.round(r.dealt)}</td><td>${Math.round(r.taken)}</td><td>${r.alive}/${r.total}</td></tr>`).join('')}</tbody></table>` : ''}
     </details>`;
   }
+  // 战功：这一场打出来的数字，给“越打越强”的反馈。
+  function featsOf(game) {
+    const mine = game.units.filter(u => u.team === 0), mvp = mine.reduce((a, b) => (b.damageDealt > (a?.damageDealt || 0) ? b : a), null);
+    return {
+      damage: Math.round(mine.reduce((s, u) => s + u.damageDealt, 0)), kills: game.units.filter(u => u.team === 1 && u.hp <= 0).length,
+      flanks: game.relicStats.flanks, charges: game.relicStats.primed + game.stats[0].charges, tactics: game.relicStats.tactics, momentum: game.relicStats.momentum,
+      routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null
+    };
+  }
+  function featsBlock(f) {
+    const cell = (n, key) => `<div><strong>${n}</strong><small>${esc(t(`feats.${key}`))}</small></div>`;
+    return `<h3 style="margin:12px 0 6px">${esc(t('feats.title'))}</h3><div class="statrow four">${cell(f.damage, 'damage')}${cell(f.kills, 'kills')}${cell(f.charges + f.flanks, 'strikes')}${cell(f.tactics, 'tactics')}</div>
+      ${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}`;
+  }
   function showRunResult() {
-    const { review, survivors, deployed, comparison, won, result } = beat.summary, r = run();
+    const { review, survivors, deployed, comparison, won, result, feats } = beat.summary, r = run();
     const coin = n => `<b>+${n} ${img('icons/coin.webp')}</b>`;
     const overNow = r.screen === 'over';
     const title = won ? t('run.won.title') : overNow ? t('run.over.defeat') : t('run.lost.title');
@@ -463,7 +562,8 @@ export function createBattle(app) {
       body: `<div class="result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}
         <div class="kicker">${esc(titles()[1])}</div><h2 id="sheet-title">${esc(title)}</h2><p class="muted">${esc(sub)}</p>
         <div class="statrow"><div><strong>${g.elapsed.toFixed(1)}s</strong><small>${esc(t('result.time'))}</small></div><div><strong>${survivors}/${deployed}</strong><small>${esc(t('result.survivors'))}</small></div><div><strong><span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span></strong><small>${esc(t('run.hearts'))}</small></div></div>
-        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : ''}
+        ${featsBlock(feats)}
+        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.ink ? `<div class="row"><span>${esc(t('reward.ink', { n: result.ink }))}</span><b>+${result.ink} ${img('icons/ink.webp')}</b></div>` : ''}${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : ''}
         <div class="actions">${won ? `<button class="btn btn-gold big block" id="r-go">${esc(t('run.toReward'))} ${icon('next')}</button>` : overNow ? `<button class="btn btn-red big block" id="r-go">${esc(t('run.toOver'))}</button>` : `<button class="btn btn-gold big block" id="r-retry">${esc(t('run.retry'))}</button>`}</div>
         ${reviewBlock(review, comparison, !won)}</div>`
     });
@@ -558,7 +658,7 @@ export function createBattle(app) {
     if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur();
     if (e.code === 'Space') { e.preventDefault(); if (e.repeat) return; if (build) startBattle(); else togglePause(); return; }
     if (key === 'escape') {
-      if (input.active) input.cancel(); else if (targeting) { targeting = false; renderer.reticle = null; update(); }
+      if (input.active) input.cancel(); else if (armed) { disarm(); update(); } else if (targeting) { targeting = false; casting = null; renderer.reticle = null; update(); }
       else if (input.selection.size) input.setSelection([]); else el('b-back').click();
       return;
     }
@@ -566,20 +666,22 @@ export function createBattle(app) {
       if (key === 'z' && (mod || !e.shiftKey)) { e.preventDefault(); el('b-undo').click(); return; }
       if (key === 'q') setTool('deploy');
       if (key === 'w') setTool('route');
-      if (key === 'e') setTool('erase');
+      if (key === 'e' && !inRun()) setTool('erase');
       if (key === 'h') toggleHold();
       if (key === 'delete' || key === 'backspace') { e.preventDefault(); removeSelection(); }
       if (key === 'a' && mod) { e.preventDefault(); input.setSelection(g.plan.filter(u => input.mine(u)).map(u => u.pid)); }
+      if (inRun() && /^[1-9]$/.test(e.key)) { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
       if (/^[1-8]$/.test(e.key)) { const type = rosterTypes()[+e.key - 1], card = type && $(`#roster [data-type="${type}"]`); if (card && !card.disabled) { selected = type; setTool('deploy'); audio.sfx('pickup'); update(); } }
       return;
     }
     if (key === 'f' && fighting()) el('b-speed').click();
-    if (key === 'r' && g.phase === 'battle') useItem();
+    if (inRun() && /^[1-9]$/.test(e.key) && g.phase === 'battle') { const c = handCards()[+e.key - 1]; if (c) useCard(c.index); return; }
+    if (key === 'r' && g.phase === 'battle' && !inRun()) useItem();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { input.cancel(); if (g.phase === 'battle') { g.phase = 'paused'; targeting = false; renderer.reticle = null; update(); } } });
 
   return {
-    enter, leave, relabel: () => { relabel(); update(); }, update, renderer,
+    enter, leave, update, renderer,
     setSkin: skin => { renderer.skin = skin; repaintCards(); },
     setReduced: on => { renderer.reduced = on || matchMedia('(prefers-reduced-motion: reduce)').matches; },
     get game() { return g; }, get mode() { return mode; }

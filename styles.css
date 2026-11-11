@@ -159,7 +159,6 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .card .quota { position: absolute; top: 3px; right: 5px; font-size: 10.5px; font-weight: 900; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .card .key { position: absolute; top: 3px; left: 4px; }
 .card .key kbd { font-size: 9.5px; min-width: 16px; padding: 0 3px; border-width: 1.5px; border-bottom-width: 2px; }
-.card .elite { position: absolute; top: 20px; left: 5px; font-size: 14px; color: var(--gold-deep); text-shadow: 0 1px 0 var(--ink); }
 .card.selected { background: #fff3c4; border-color: var(--gold-deep); box-shadow: 0 3px 0 var(--gold-deep); }
 .card.full canvas, .card.locked canvas { opacity: .45; }
 .card.unaffordable .cost { color: var(--red); }
@@ -210,12 +209,6 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .loadout .slot img { width: 46px; height: 46px; }
 .loadout .slot b { display: block; font-size: 14px; font-weight: 900; }
 .loadout .slot small { display: block; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); line-height: 1.3; }
-.items-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.item-chip { position: relative; width: 46px; height: 46px; border: 2.5px solid var(--ink); border-radius: 12px; background: #fff; display: grid; place-items: center; box-shadow: 0 2px 0 var(--ink); }
-.item-chip img { width: 38px; height: 38px; }
-.item-chip b { position: absolute; bottom: -6px; right: -6px; min-width: 19px; height: 19px; line-height: 15px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 900; text-align: center; border: 2px solid #fff; }
-.item-chip.on { background: #fff0b8; border-color: var(--gold-deep); box-shadow: 0 2px 0 var(--gold-deep); outline: 3px solid var(--gold); }
-.item-chip.none { font-size: 11px; font-weight: 900; color: var(--ink-soft); }
 .relic-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .relic { width: 40px; height: 40px; border: 2px solid var(--ink); border-radius: 11px; background: #fff7dc; display: grid; place-items: center; }
 .relic img { width: 34px; height: 34px; }
@@ -262,10 +255,6 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .rnode.skip { opacity: .45; filter: grayscale(.8); }
 .run-side { display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto; }
 .run-side h4 { margin: 4px 0 2px; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: var(--ink-soft); text-transform: uppercase; }
-.deck { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.deck .unit { position: relative; padding: 2px; border: 2px solid var(--ink); border-radius: 12px; background: #fff; text-align: center; font-size: 10.5px; font-weight: 900; }
-.deck .unit canvas { width: 44px; height: 44px; display: block; margin: 0 auto; }
-.deck .unit .elite { position: absolute; top: 1px; right: 4px; color: var(--gold-deep); font-size: 13px; }
 .run-side .actions { margin-top: auto; display: grid; gap: 8px; }
 
 /* ---------- 弹窗 ---------- */
@@ -448,3 +437,62 @@ table.units th:first-child, table.units td:first-child { text-align: left; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 body.reduced *, body.reduced *::before, body.reduced *::after { animation: none !important; transition: none !important; }
 .coin-inline { width: 20px; height: 20px; vertical-align: -4px; }
+
+/* ---------- 远征卡牌 ---------- */
+.roster.hand { grid-template-columns: 1fr; gap: 7px; padding-top: 6px; }
+.hcard { position: relative; display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 6px; min-height: 64px; padding: 4px 8px 4px 4px; border: 2.5px solid var(--ink); border-radius: 13px; background: #fff; box-shadow: 0 3px 0 var(--ink); text-align: left; transition: transform .06s, box-shadow .06s, background .15s; }
+.hcard:hover { filter: brightness(1.04); }
+.hcard:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.hcard .art { width: 50px; height: 50px; display: grid; place-items: center; pointer-events: none; }
+.hcard .art canvas, .hcard .art img { width: 48px; height: 48px; }
+.hcard .body { min-width: 0; }
+.hcard .body b { display: block; font-size: 13.5px; font-weight: 900; line-height: 1.15; }
+.hcard .body small { display: block; font-size: 11px; font-weight: 800; color: var(--ink-soft); }
+.hcard .body i { display: block; font-style: normal; font-size: 10.5px; font-weight: 900; color: #9a5a00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hcard .cost { display: inline-flex; align-items: center; gap: 1px; font-weight: 900; font-size: 15px; color: var(--blue); align-self: start; margin-top: 4px; }
+.hcard .cost img { width: 18px; height: 18px; }
+.hcard .key { position: absolute; top: -7px; left: -5px; }
+.hcard .key kbd { font-size: 9.5px; min-width: 16px; padding: 0 3px; }
+.hcard .state { position: absolute; right: 7px; bottom: 3px; font-size: 10px; font-weight: 900; color: var(--ink-soft); }
+.hcard.tactic { background: #f1f5ff; }
+.hcard.up { border-color: var(--gold-deep); }
+.hcard.armed { background: #fff3c4; outline: 3px solid var(--gold); outline-offset: 1px; }
+.hcard.played { background: #e2f3d8; }
+.hcard.short .cost { color: var(--red); }
+.hcard.waiting { opacity: .55; box-shadow: none; }
+.hcard.used { opacity: .4; filter: grayscale(.8); box-shadow: none; }
+.hcard.ready { background: #dfeaff; border-color: #3f63c7; animation: pulse-plain 1.4s ease-in-out infinite; }
+.handbar { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
+.handbar .deck { grid-column: span 2; font-size: 11.5px; font-weight: 800; color: var(--ink-soft); text-align: center; }
+.handbar .btn.small { min-height: 34px; padding: 0 6px; font-size: 11.5px; box-shadow: 0 2px 0 var(--ink); }
+.b-status .momentum { display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 0 12px 0 6px; border-radius: 999px; background: #2a427c; color: #cfe0ff; font-weight: 900; font-variant-numeric: tabular-nums; }
+.b-status .momentum img { width: 28px; height: 28px; }
+.b-status .momentum b { font-size: 20px; color: #fff; }
+.b-status .momentum.live { background: #3f63c7; box-shadow: 0 0 0 3px rgba(143, 176, 240, .45); }
+#arena.stamping { cursor: copy; }
+.pick .pcost { position: absolute; top: 8px; right: 10px; display: inline-flex; align-items: center; gap: 2px; font-weight: 900; font-size: 16px; color: var(--blue); }
+.pick .pcost img { width: 22px !important; height: 22px !important; }
+.pick { position: relative; }
+.pick.tactic-card { background: linear-gradient(#ffffff, #eef3ff); }
+.deck-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+.deck-grid .pick { padding: 10px 6px 8px; gap: 3px; animation: none; }
+.deck-grid .pick img, .deck-grid .pick canvas { width: 56px; height: 56px; }
+.deck-grid .pick b { font-size: 13px; }
+.deck-grid .pick small { font-size: 10.5px; }
+.deck-grid .pick .kind { font-size: 9.5px; }
+.deck-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.deck-list span { padding: 3px 8px; border: 2px solid var(--ink); border-radius: 999px; background: #fff; font-size: 11.5px; font-weight: 900; }
+.deck-list span.tactic { background: #eef3ff; }
+.deck-list span.up { border-color: var(--gold-deep); background: #fff3c4; }
+.pick.up { border-color: var(--gold-deep); box-shadow: 0 5px 0 var(--gold-deep); }
+.pick.up:hover:not(:disabled) { box-shadow: 0 9px 0 var(--gold-deep); }
+div.pick:hover { transform: none; box-shadow: 0 5px 0 var(--ink); }
+div.pick.up:hover { box-shadow: 0 5px 0 var(--gold-deep); }
+.shop-grid + .shop-grid { margin-top: 14px; padding-top: 12px; border-top: 2px dashed rgba(34, 48, 74, .25); }
+.shop-grid .pick .why { color: var(--red); font-weight: 900; }
+.event-card { display: flex; justify-content: center; margin-top: 10px; }
+.event-card .pick { width: 220px; animation: none; }
+.event-card .pick img, .event-card .pick canvas { width: 72px; height: 72px; }
+.pick .card-kind { align-self: stretch; text-align: left; padding-right: 48px; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shop-grid .pick img, .shop-grid .pick canvas { width: 48px; height: 48px; }

@@ -7,6 +7,7 @@ const INK = '#22304a';
 const FONT = 'ui-rounded,"SF Pro Rounded","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif';
 const TAU = Math.PI * 2;
 const BLUE_INK = '#3f63c7', RED_INK = '#d2543f';
+const STRIDE = 15; // 走一步的距离（逻辑像素）：走得快步子就密，巨人步子慢
 
 function ellipse(c, x, y, rx, ry, color) { c.fillStyle = color; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fill(); }
 function line(c, x, y, a, b, color = INK, width = 2) { c.strokeStyle = color; c.lineWidth = width; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); c.moveTo(x, y); c.lineTo(a, b); c.stroke(); }
@@ -54,6 +55,7 @@ function drawRock(c, o, theme) {
   c.drawImage(img, o.x - w / 2, o.y + o.r * .72 - h, w, h);
 }
 
+const height = f => (f.unit ? UNIT_HEIGHT[f.unit.type] : 62);
 function drawEffect(c, f, renderer) {
   const reduced = renderer.reduced, p = f.t / f.life, alpha = 1 - p;
   c.save(); c.translate(f.x, f.y); c.globalAlpha = Math.max(0, alpha);
@@ -123,6 +125,11 @@ function drawEffect(c, f, renderer) {
     if (!reduced) { c.rotate(f.angle || 0); for (let i = -1; i <= 1; i++) line(c, -24 - p * 12, i * 8, 6 - p * 6, i * 8, '#fff6d6', 3 * (1 - p) + .5); }
   } else if (f.kind === 'primed') {
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, r = 8 + p * 26; line(c, Math.cos(a) * r * .5, Math.sin(a) * r * .5, Math.cos(a) * r, Math.sin(a) * r, '#ffd84a', 3.5 * (1 - p) + .5); }
+  } else if (f.kind === 'momentum') {
+    label(c, `+${f.n || 1}`, 0, -height(f) - p * 22, 15, '#cfe6ff', { stroke: '#22304a', width: 4 });
+    if (!reduced) ellipse(c, 0, -height(f) * .5, 6 + p * 10, 6 + p * 10, `rgba(80,140,255,${.35 * (1 - p)})`);
+  } else if (f.kind === 'shield') {
+    ring(c, 0, -22, 14 + p * 16, 18 + p * 18, '#8fd0ff', 3 * (1 - p) + .5);
   } else if (f.kind === 'arrive') {
     ring(c, 0, 2, 10 + p * 18, (10 + p * 18) * .4, f.primed ? '#ffd84a' : '#ffffff', 3 * (1 - p) + .5);
   } else if (!reduced && f.kind === 'dust') ellipse(c, 0, 0, 3 + p * 7, 2 + p * 3, 'rgba(240,230,200,.6)');
@@ -135,7 +142,7 @@ export class Renderer {
     this.theme = 'meadow'; this.skin = 'blue'; this.words = {}; this.unitName = type => type;
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.faces = new Map(); this.inkTrail = []; this.reticle = null;
-    this.particles = []; this.decals = []; this.seenFx = new WeakSet(); this.timeScale = 1;
+    this.particles = []; this.decals = []; this.seenFx = new WeakSet(); this.timeScale = 1; this.bodies = new Map(); this.frameDt = 0;
     this.resize(); new ResizeObserver(() => this.resize()).observe(canvas);
   }
   setTheme(theme) { if (theme !== this.theme) { this.theme = theme; this.fieldCache = null; } }
@@ -221,7 +228,19 @@ export class Renderer {
   }
 
   // ---------- 击杀粒子 ----------
-  clearEffects() { this.particles = []; this.decals = []; this.faces.clear(); }
+  clearEffects() { this.particles = []; this.decals = []; this.faces.clear(); this.bodies.clear(); }
+  // 每名士兵在画面上的“身体”：位置轻微平滑（挨打被推开、互相挤开时不会瞬间一跳），
+  // 步伐按实际走过的距离推进，起步和停下渐变。只影响画面，不影响模拟。
+  body(u) {
+    let b = this.bodies.get(u.id);
+    if (!b) { b = { x: u.x, y: u.y, amt: 0, phase: (u.id * 1.7) % TAU }; this.bodies.set(u.id, b); }
+    const dt = this.frameDt, px = b.x, py = b.y, follow = 1 - Math.exp(-dt * 28);
+    b.x += (u.x - b.x) * follow; b.y += (u.y - b.y) * follow;
+    if (Math.hypot(u.x - b.x, u.y - b.y) > 40) { b.x = u.x; b.y = u.y; }
+    b.amt += ((u.moving ? 1 : 0) - b.amt) * (1 - Math.exp(-dt * 9));
+    if (u.moving) b.phase += Math.min(8, Math.hypot(b.x - px, b.y - py)) / STRIDE * Math.PI;
+    return b;
+  }
   // 一名士兵倒下：碎片和星星四散、烟团、冲击环，地上留一摊队伍颜色的墨迹。
   spawnKill(f) {
     if (this.reduced) return;
@@ -342,12 +361,14 @@ export class Renderer {
     c.restore();
   }
 
-  drawUnit(c, u, time, build, g) {
+  drawUnit(c, sim, time, build, g) {
+    const body = build || sim.id === undefined ? null : this.body(sim), u = body ? { ...sim, x: body.x, y: body.y } : sim;
     const def = TYPES[u.type], height = UNIT_HEIGHT[u.type] * (u.boss?.size || 1), palette = u.team === 0 ? this.skin : 'red', reduced = this.reduced;
     const pose = this.pose(u, build), face = pose.flip;
     const ax = Math.cos(u.angle ?? 0), ay = Math.sin(u.angle ?? 0);
-    const moving = u.moving || 0, walk = u.walk || 0;
-    const hop = reduced ? 0 : Math.abs(Math.sin(walk * .85)) * 5 * moving, tilt = reduced ? 0 : Math.sin(walk * .85) * .07 * moving;
+    // 走路：脚踩在地上，身体随步伐左右轻摆、略微前倾，每一步只抬起一点点。
+    const amt = reduced ? 0 : body?.amt || 0, phase = body?.phase || 0;
+    const sway = Math.sin(phase) * .05 * amt, lean = .045 * amt * face, lift = Math.abs(Math.sin(phase)) * 1.2 * amt, step = (1 - Math.abs(Math.sin(phase))) * .02 * amt;
     const wind = u.windupTotal ? 1 - u.windup / u.windupTotal : 0;
     const swing = u.swing ? Math.sin((1 - u.swing / (def.projectile ? .22 : .28)) * Math.PI) : 0;
     const age = u.born ? Date.now() / 1000 - u.born : 1, pop = !reduced && build && age < .3 ? 1 + Math.sin(age / .3 * Math.PI) * .2 : 1;
@@ -355,11 +376,12 @@ export class Renderer {
     ellipse(c, u.x, u.y + 2, height * .27, height * .085, 'rgba(25,40,55,.25)');
     if (!build && u.team === 0 && g.effects.rally > 0) { ring(c, u.x, u.y + 2, height * .33, height * .11, '#ffd84a', 2.5); }
     if (u.frozen) ellipse(c, u.x, u.y + 2, height * .36, height * .12, 'rgba(190,232,255,.75)');
+    if (!build && u.shield > 0) { c.save(); c.globalAlpha = .35 + Math.min(.35, u.shield / 60); ring(c, u.x, u.y - height * .45, height * .42, height * .55, '#6fb6ff', 3); c.restore(); }
     c.save(); c.translate(u.x, u.y);
     if (!reduced) {
-      c.translate(Math.cos(u.hitAngle || 0) * (u.recoil || 0) * 12 + ax * (swing * 7 - wind * 3), ay * (swing * 5 - wind * 2) - hop);
-      c.rotate(tilt + face * (swing * .2 - wind * .13));
-      c.scale(pop * (1 + wind * .05), pop * breathe * (1 - wind * .06));
+      c.translate(Math.cos(u.hitAngle || 0) * (u.recoil || 0) * 12 + ax * (swing * 7 - wind * 3), ay * (swing * 5 - wind * 2) - lift);
+      c.rotate(sway + lean + face * (swing * .2 - wind * .13));
+      c.scale(pop * (1 + wind * .05 + step * .5), pop * breathe * (1 - wind * .06 - step));
     }
     const options = { flip: face < 0, back: pose.back };
     if (this.drag?.unit?.pid === u.pid && u.pid !== undefined && build) c.globalAlpha = .28;
@@ -373,7 +395,6 @@ export class Renderer {
     if (u.chill > 0 && !u.frozen && !reduced) for (let i = 0; i < 2; i++) { const a = time * 2 + i * 3 + (u.id || 0); label(c, '❄', u.x + Math.cos(a) * 14, u.y - height * .55 + Math.sin(a * 1.3) * 9, 10, '#e8f7ff', { stroke: '#4d93c9', width: 2 }); }
     if (u.threat > 0 && u.hp > 0) { const y = u.y - height - 16; pill(c, u.x - 9, y - 9, 18, 18, '#ff6b57', INK, 2); label(c, '!', u.x, y + .5, 13, '#fff', { stroke: null }); }
     if (u.boss) this.drawCrown(c, u.x, u.y - height - (build || u.hp >= u.max ? 4 : 16), time);
-    if (u.team === 0 && this.elite?.has(u.type)) star(c, u.x + 13, u.y - 4, 6.5, '#ffd84a');
     if (!build && u.hp > 0 && u.hp < u.max) {
       const w = u.boss ? 70 : u.type === 'giant' ? 46 : 32, y = u.y - height - 5;
       pill(c, u.x - w / 2 - 1.5, y - 1.5, w + 3, 8, INK);
@@ -426,7 +447,7 @@ export class Renderer {
   draw(g, t) {
     const c = this.c, build = g.phase === 'build', reduced = this.reduced;
     if (!this.canvas.width) { this.resize(); if (!this.canvas.width) return; }
-    const dt = Math.min(.05, Math.max(0, t - (this.lastT ?? t))); this.lastT = t; this.shake = this.shake > .15 ? this.shake * Math.exp(-dt * 11) : 0;
+    const dt = Math.min(.05, Math.max(0, t - (this.lastT ?? t))); this.lastT = t; this.frameDt = dt; this.shake = this.shake > .15 ? this.shake * Math.exp(-dt * 11) : 0;
     for (const f of g.fx) if (f.kind === 'death' && !this.seenFx.has(f)) { this.seenFx.add(f); this.spawnKill(f); }
     this.stepParticles(dt * this.timeScale);
     const sx = this.shake ? (Math.random() - .5) * 2 * this.shake * this.scale : 0, sy = this.shake ? (Math.random() - .5) * 2 * this.shake * this.scale : 0;
@@ -467,6 +488,14 @@ export class Renderer {
     const drawables = [...units.map(u => ({ y: u.y, u })), ...g.rocks.filter(o => o.kind !== 'pond').map(o => ({ y: o.y + o.r * .3, o }))].sort((a, b) => a.y - b.y);
     for (const d of drawables) { if (d.o) drawRock(c, d.o, this.theme); else this.drawUnit(c, d.u, time, build, g); }
 
+    // 卡牌模式：选着兵牌时，在鼠标处画出整队的虚影（放不下时是红色）。
+    if (build && this.stamp) {
+      const st = this.stamp, bob = reduced ? 0 : Math.sin(t * 5) * 1.5;
+      for (const p of st.spots) {
+        c.save(); c.globalAlpha = .55; drawUnitImage(c, st.type, this.skin, p.x, p.y + 3 - bob, UNIT_HEIGHT[st.type], st.valid ? {} : { silhouette: '#d2543f' }); c.restore();
+        c.setLineDash([5, 5]); ring(c, p.x, p.y + 2, 20, 8, INK, 4); ring(c, p.x, p.y + 2, 20, 8, st.valid ? '#ffe08a' : '#ff6b57', 2); c.setLineDash([]);
+      }
+    }
     if (build && !this.drag) for (const ghost of this.guideGhosts || []) {
       if (g.placementError(ghost.type, ghost.x, ghost.y, ghost.team)) continue;
       const bob = reduced ? 0 : Math.sin(t * 4) * 2;

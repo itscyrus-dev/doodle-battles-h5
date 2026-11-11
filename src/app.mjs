@@ -1,6 +1,6 @@
 // 主程序（电脑版）：启动、舞台缩放、主页、战役地图、远征入口和各个弹窗（图鉴、军旗、悬赏、成就、设置、玩法）。
 import { LEVELS, CHAPTERS, TYPES, ITEMS, UNIT_ORDER, ITEM_ORDER, LEVELS_PER_CHAPTER, unitUnlocked, itemUnlocked } from './data.mjs';
-import { t, pick, setLang, lang, detectLang, LANGUAGES } from './i18n.mjs';
+import { t, pick } from './i18n.mjs';
 import { preload, CORE_IMAGES, assetUrl, PALETTES, drawUnitImage, loadImage } from './assets.mjs';
 import { paintUnit } from './render.mjs';
 import * as audio from './audio.mjs';
@@ -9,7 +9,7 @@ import { SKINS, ACHIEVEMENTS, REWARDS, ensureDaily, buySkin, equipSkin, claimAch
 import { SPOTLIGHTS } from './first-session.mjs';
 import { PlaytestLog, PLAYTEST_VERSION } from './playtest.mjs';
 import { RELICS, RELIC_ORDER } from './relics.mjs';
-import { nodeOf } from './run.mjs';
+import { nodeOf, deckTypes } from './run.mjs';
 import { $, $$, esc, icon, img, starsMarkup, toast, openSheet, closeSheet, initOverlay, initTips, canVibrate, setHaptics, buzz, tipAttrs } from './ui.mjs';
 import { createBattle } from './battle.mjs';
 import { createRunUI } from './run-ui.mjs';
@@ -21,7 +21,6 @@ const app = {
   persist() { const ok = writeSave(storage, app.save); if (!ok && app.storageOk) toast(t('toast.storage'), 3200); app.storageOk = ok; },
   show, go, announce
 };
-setLang(app.save.settings.lang || detectLang());
 let battle = null, runUI = null, squadTimer = 0;
 const unitName = type => t(`unit.${type}.name`), itemName = id => t(`item.${id}.name`);
 const levelLabel = i => `${t('common.level', { n: i + 1 })} · ${pick(LEVELS[i].title)}`;
@@ -36,7 +35,7 @@ function fitStage() {
 function applySettings() {
   const s = app.save.settings;
   audio.configure({ music: s.music, sfx: s.sfx }); setHaptics(s.haptics);
-  document.body.classList.toggle('reduced', s.reduced); document.documentElement.lang = lang() === 'zh' ? 'zh-CN' : 'en';
+  document.body.classList.toggle('reduced', s.reduced);
   battle?.setReduced(s.reduced);
 }
 function show(name) {
@@ -65,8 +64,8 @@ function renderHome() {
   $('#screen-home').innerHTML = `
     <div class="topbar">${currencyPills()}<button class="ibtn" id="home-full" ${tipAttrs(t('settings.fullscreen'), t('settings.fullscreenNote'))}>${icon('expand')}</button><button class="ibtn" id="home-settings" aria-label="${esc(t('home.settings'))}">${icon('gear')}</button></div>
     <div class="home-left">
-      ${img('ui/logo.webp', 'home-logo', 'Draw & Clash')}
-      ${lang() === 'zh' ? `<div class="home-sub">${esc(t('app.name'))} · ${esc(t('app.tagline'))}</div>` : `<div class="home-sub">${esc(t('app.tagline'))}</div>`}
+      ${img('ui/logo.webp', 'home-logo', t('app.name'))}
+      <div class="home-sub">${esc(t('app.name'))} · ${esc(t('app.tagline'))}</div>
       <button class="btn btn-gold menu-main" id="home-run"><span>${esc(r ? t('run.continue') : t('home.expedition'))}${r ? '' : `<span class="new">${esc(t('home.new'))}</span>`}</span><small>${esc(runSub)}</small></button>
       <button class="btn btn-paper menu-main" id="home-campaign"><span>${esc(t('home.campaign'))}</span><small>${esc(allClear ? t('home.allClear') : t('home.levelTag', { n: next + 1, title: pick(LEVELS[next].title) }))}</small></button>
       <div class="menu-row">
@@ -98,7 +97,7 @@ function drawSquad(now) {
   const r = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
   if (r.width && (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr))) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
   const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height; c.clearRect(0, 0, w, h);
-  const types = UNIT_ORDER.filter(type => unitUnlocked(type, app.save.unlocked) || app.save.run?.deck.includes(type)), still = app.save.settings.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const met = deckTypes(app.save.run), types = UNIT_ORDER.filter(type => unitUnlocked(type, app.save.unlocked) || met.includes(type)), still = app.save.settings.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches;
   const order = [...types.keys()].sort((a, b) => (a % 2) - (b % 2));
   for (const i of order) {
     const type = types[i], n = types.length, x = w * (n === 1 ? .5 : .1 + .8 * i / (n - 1)), back = i % 2 === 0, size = h * (type === 'giant' ? .62 : .44) * (back ? .9 : 1);
@@ -161,7 +160,7 @@ function renderLevel(i) {
 
 // ---------- 图鉴 ----------
 function openCodex(tab = 'units', chosen = null) {
-  const s = app.save, unlocked = s.unlocked, seen = type => unitUnlocked(type, unlocked) || s.run?.deck.includes(type) || s.usedUnits[type];
+  const s = app.save, unlocked = s.unlocked, met = deckTypes(s.run), seen = type => unitUnlocked(type, unlocked) || met.includes(type) || s.usedUnits[type];
   const stat = (label, value, max) => `<div><span>${esc(label)}</span><i><em style="width:${Math.min(100, value / max * 100)}%"></em></i><span>${value}</span></div>`;
   let body = `<div class="tabs">${['units', 'items', 'relics'].map(id => `<button data-tab="${id}" class="${tab === id ? 'on' : ''}">${esc(t(`codex.${id}`))}</button>`).join('')}</div>`;
   if (tab === 'units') {
@@ -170,7 +169,7 @@ function openCodex(tab = 'units', chosen = null) {
       <div class="profile box"><div class="head"><canvas id="codex-art" width="220" height="220"></canvas><div><h3>${esc(open ? unitName(type) : '???')}</h3><p class="muted">${esc(open ? t(`unit.${type}.role`) : t('codex.unlockAt', { n: d.unlock }))}</p>
         <div class="chips"><span class="chip gold">${img('icons/ink.webp')}${d.cost}</span><span class="chip">${esc(t('codex.limit'))} ${d.limit}</span></div></div></div>
         ${open ? `<div class="bars">${stat(t('codex.hp'), d.hp, 360)}${d.heals ? stat(t('codex.heal'), d.heal, 35) : stat(t('codex.damage'), d.damage, 35)}${stat(t('codex.range'), d.range, 145)}${stat(t('codex.speed'), d.speed, 64)}</div>
-        <div><b>${esc(t('codex.good'))}</b><p>${esc(t(`unit.${type}.good`))}</p></div><div><b>${esc(t('codex.watch'))}</b><p>${esc(t(`unit.${type}.watch`))}</p></div><div><b>${esc(t('upgrade.badge'))}</b><p>${esc(t(`upgrade.${type}`))}</p></div>` : ''}</div>`;
+        <div><b>${esc(t('codex.good'))}</b><p>${esc(t(`unit.${type}.good`))}</p></div><div><b>${esc(t('codex.watch'))}</b><p>${esc(t(`unit.${type}.watch`))}</p></div>` : ''}</div>`;
   } else if (tab === 'items') {
     body += `<div class="options">${ITEM_ORDER.map(id => { const open = itemUnlocked(id, unlocked) || s.usedItems[id]; return `<div class="option ${open ? '' : 'locked'}">${img(`icons/item-${id}.webp`)}<span><b>${esc(itemName(id))}</b><small>${esc(open ? t(`item.${id}.desc`) : t('item.unlockAt', { n: ITEMS[id].unlock }))}</small></span></div>`; }).join('')}</div>`;
   } else {
@@ -248,7 +247,6 @@ function openSettings() {
   const sheet = openSheet({
     title: esc(t('settings.title')), className: 'full',
     body: `<div class="rows">
-      <div class="rowline"><span>${esc(t('settings.language'))}</span><div class="seg">${LANGUAGES.map(l => `<button data-lang="${l.id}" class="${lang() === l.id ? 'on' : ''}">${l.label}</button>`).join('')}</div></div>
       <div class="rowline"><span>${esc(t('settings.music'))}</span>${toggle('set-music', s.music)}</div>
       <div class="rowline"><span>${esc(t('settings.sfx'))}</span>${toggle('set-sfx', s.sfx)}</div>
       <div class="rowline"><span>${esc(t('settings.reduced'))}<small>${esc(t('settings.reducedNote'))}</small></span>${toggle('set-reduced', s.reduced)}</div>
@@ -263,7 +261,6 @@ function openSettings() {
   });
   const flip = (id, key, after) => { $(`#${id}`, sheet).onclick = e => { s[key] = !s[key]; e.currentTarget.setAttribute('aria-checked', String(s[key])); applySettings(); app.persist(); after?.(); }; };
   flip('set-music', 'music', () => audio.unlock()); flip('set-sfx', 'sfx', () => audio.sfx('tap')); flip('set-reduced', 'reduced');
-  for (const b of $$('[data-lang]', sheet)) b.onclick = () => { s.lang = setLang(b.dataset.lang); app.persist(); applySettings(); relabelAll(); openSettings(); toast(t('toast.lang')); };
   $('#set-full', sheet).onclick = toggleFullscreen;
   $('#set-howto', sheet).onclick = openHowto;
   $('#set-ach', sheet).onclick = openAchievements;
@@ -277,7 +274,6 @@ function openSettings() {
     };
   };
 }
-function relabelAll() { fitStage(); if (app.screen === 'home') renderHome(); if (app.screen === 'map') renderMap(app.chapter); if (app.screen === 'run') runUI.render(); battle.relabel(); }
 
 function openFeedback() {
   const m = app.metrics, summary = m.summary();

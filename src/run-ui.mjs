@@ -1,6 +1,8 @@
 // 远征界面：开局选编制、分岔地图、战利品、军需官、营火、奇遇和结算。规则都在 run.mjs，这里只负责显示和点击。
-import { UNIT_ORDER, CHAPTERS } from './data.mjs';
-import { newRun, available, enter, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, abandon, runPayout, mapOf, nodeOf, isFight, WARBANDS, WARBAND_ORDER, EVENTS, EVENT_GAIN, CAMP } from './run.mjs';
+import { CHAPTERS } from './data.mjs';
+import { newRun, available, enter, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, abandon, runPayout, mapOf, nodeOf, perksOf, handSize, WARBANDS, WARBAND_ORDER, CAMP, MIN_DECK } from './run.mjs';
+import { CARDS, CARD_ORDER } from './cards.mjs';
+import { cardName, cardFace } from './card-view.mjs';
 import { RELICS } from './relics.mjs';
 import { ROWS, ACT_THEMES } from './encounters.mjs';
 import { recordRunEnd } from './meta.mjs';
@@ -10,26 +12,29 @@ import { t, pick } from './i18n.mjs';
 import * as audio from './audio.mjs';
 import { $, $$, esc, icon, img, toast, openSheet, closeSheet, tipAttrs } from './ui.mjs';
 
-const unitName = type => t(`unit.${type}.name`), itemName = id => t(`item.${id}.name`), relicName = id => t(`relic.${id}`);
+const unitName = type => t(`unit.${type}.name`), relicName = id => t(`relic.${id}`);
 const NODE_ICON = { battle: 'node-battle', elite: 'node-elite', boss: 'node-boss', event: 'node-event', shop: 'node-shop', camp: 'node-camp', treasure: 'chest' };
 const nodeArt = kind => NODE_ICON[kind] === 'chest' ? 'icons/chest.webp' : `icons/${NODE_ICON[kind]}.webp`;
 const hearts = r => `<span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span>`;
 
 // 一个奖励或商品的显示：类别、名字、说明和图。
-export function optionView(o) {
-  if (o.kind === 'unit') return { kind: t('opt.kind.unit'), title: unitName(o.type), desc: t(`unit.${o.type}.good`), art: `<canvas width="168" height="168" data-unit="${o.type}"></canvas>` };
-  if (o.kind === 'upgrade') return { kind: t('opt.kind.upgrade'), title: t('opt.upgrade', { name: unitName(o.type) }), desc: t(`upgrade.${o.type}`), art: `<canvas width="168" height="168" data-unit="${o.type}" data-elite="1"></canvas>` };
+export function optionView(o, perks = {}) {
+  if (o.kind === 'card') { const { c, html } = cardFace(o, perks); return { kind: '', title: cardName(o.id, !!o.up), desc: '', art: '', face: html, cls: c.kind === 'tactic' ? 'tactic-card' : '', rare: CARDS[o.id].rarity === 'rare' }; }
+  if (o.kind === 'service') return { kind: t('shop.service'), title: t(`shop.${o.service}`), desc: t(`shop.${o.service}.desc`), art: img(o.service === 'remove' ? 'icons/item-smoke.webp' : 'icons/star.webp') };
   if (o.kind === 'relic') return { kind: `${t('opt.kind.relic')} · ${t(`relic.${RELICS[o.id].tier}`)}`, title: relicName(o.id), desc: t(`relic.${o.id}.desc`), art: img(`icons/relic-${o.id}.webp`), rare: RELICS[o.id].tier === 'rare' };
-  if (o.kind === 'item') return { kind: t('opt.kind.item'), title: t('opt.item', { name: itemName(o.id), n: o.n }), desc: t(`item.${o.id}.desc`), art: img(`icons/item-${o.id}.webp`) };
   if (o.kind === 'ink') return { kind: t('opt.kind.ink'), title: t('opt.ink', { n: o.n }), desc: t('opt.ink.desc'), art: img('icons/ink.webp') };
   if (o.kind === 'coins') return { kind: t('opt.kind.coins'), title: t('opt.coins', { n: o.n }), desc: t('opt.coins.desc'), art: img('icons/coin.webp') };
   return { kind: t('opt.kind.heart'), title: t('opt.heart', { n: o.n }), desc: t('opt.heart.desc'), art: img('icons/heart.webp') };
 }
 function paintArt(root, skin) {
-  for (const c of $$('canvas[data-unit]', root)) {
-    paintUnit(c, c.dataset.unit, skin);
-    if (c.dataset.elite) { const g = c.getContext('2d'); g.font = `900 ${c.width * .26}px sans-serif`; g.fillStyle = '#ffcf4a'; g.strokeStyle = '#22304a'; g.lineWidth = c.width * .03; g.strokeText('★', c.width * .7, c.height * .3); g.fillText('★', c.width * .7, c.height * .3); }
-  }
+  for (const c of $$('canvas[data-unit]', root)) paintUnit(c, c.dataset.unit, skin);
+}
+
+// 牌库的简短列表：同名同级的牌合并成“名字 ×n”。
+function deckChips(deck) {
+  const groups = new Map();
+  for (const e of deck) { const key = `${e.id}:${e.up}`; groups.set(key, { ...e, n: (groups.get(key)?.n || 0) + 1 }); }
+  return [...groups.values()].map(e => `<span class="${CARDS[e.id].kind} ${e.up ? 'up' : ''}">${esc(cardName(e.id, e.up))}${e.n > 1 ? ` ×${e.n}` : ''}</span>`).join('');
 }
 
 export function createRunUI(app) {
@@ -45,10 +50,10 @@ export function createRunUI(app) {
         className: 'wide', kicker: esc(t('run.new')), title: esc(t('run.warband')),
         body: `<p class="muted">${esc(t('run.warbandSub'))}</p>${run() && run().screen !== 'over' ? `<p class="muted" style="color:var(--red)">${esc(t('run.replace'))}</p>` : ''}
           <div class="warbands">${WARBAND_ORDER.map(id => { const w = WARBANDS[id]; return `<button class="warband ${id === chosen ? 'on' : ''}" data-band="${id}">
-            <b>${esc(t(`warband.${id}`))}</b><div class="units">${w.deck.map(type => `<canvas width="108" height="108" data-unit="${type}" ${tipAttrs(unitName(type), t(`unit.${type}.role`))}></canvas>`).join('')}</div>
+            <b>${esc(t(`warband.${id}`))}</b><div class="units">${[...new Set(w.deck.filter(c => CARDS[c].kind === 'unit').map(c => CARDS[c].type))].map(type => `<canvas width="108" height="108" data-unit="${type}" ${tipAttrs(unitName(type), t(`unit.${type}.role`))}></canvas>`).join('')}</div>
             <p>${esc(t(`warband.${id}.desc`))}</p>
-            <div class="gear">${w.relics.map(r => `<span ${tipAttrs(relicName(r), t(`relic.${r}.desc`))}>${img(`icons/relic-${r}.webp`)}</span>${esc(relicName(r))}`).join('')}</div>
-            <div class="gear">${Object.entries(w.items).map(([item, n]) => `<span ${tipAttrs(itemName(item), t(`item.${item}.short`))}>${img(`icons/item-${item}.webp`)}</span>×${n}`).join(' ')}</div></button>`; }).join('')}</div>
+            <div class="deck-list">${deckChips(w.deck.map(c => ({ id: c, up: false })))}</div>
+            <div class="gear">${w.relics.map(r => `<span ${tipAttrs(relicName(r), t(`relic.${r}.desc`))}>${img(`icons/relic-${r}.webp`)}</span>${esc(relicName(r))}`).join('')}</div></button>`; }).join('')}</div>
           <div class="actions"><button class="btn btn-gold big block" id="run-start">${esc(t('run.start'))} ${icon('next')}</button></div>`
       });
       paintArt(sheet, skin());
@@ -81,12 +86,31 @@ export function createRunUI(app) {
     return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${lines.join('')}</svg>${nodes}`;
   }
   function side(r) {
-    const items = Object.entries(r.items).filter(([, n]) => n > 0);
     return `<div><h4>${esc(t('run.hearts'))}</h4>${hearts(r)}</div>
-      <div><h4>${esc(t('run.deck'))}</h4><div class="deck">${UNIT_ORDER.filter(u => r.deck.includes(u)).map(type => `<div class="unit" ${tipAttrs(unitName(type), r.upgrades.includes(type) ? `${t('upgrade.badge')}：${t(`upgrade.${type}`)}` : t(`unit.${type}.role`))}><canvas width="88" height="88" data-unit="${type}"></canvas>${esc(unitName(type))}${r.upgrades.includes(type) ? '<span class="elite">★</span>' : ''}</div>`).join('')}</div></div>
+      <div><h4>${esc(t('deck.title'))} · ${esc(t('deck.count', { n: r.deck.length }))}</h4><div class="deck-list">${deckChips(r.deck)}</div>
+        <button class="btn btn-paper small block" id="run-deck" style="margin-top:8px">${esc(t('deck.view'))}</button></div>
       <div><h4>${esc(t('run.relics'))}</h4>${r.relics.length ? `<div class="relic-row">${r.relics.map(id => `<span class="relic" ${tipAttrs(relicName(id), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}</div>` : `<p class="muted">${esc(t('run.noRelics'))}</p>`}</div>
-      <div><h4>${esc(t('run.items'))}</h4>${items.length ? `<div class="items-row">${items.map(([id, n]) => `<span class="item-chip" ${tipAttrs(itemName(id), t(`item.${id}.desc`))}>${img(`icons/item-${id}.webp`)}<b>${n}</b></span>`).join('')}</div>` : `<p class="muted">${esc(t('run.noItems'))}</p>`}</div>
       <div class="actions"><p class="muted">${esc(t('run.saved'))}</p><button class="btn btn-paper small block" id="run-abandon">${esc(t('run.abandon'))}</button></div>`;
+  }
+  // 牌库一览，兵牌在前、战术牌在后。不给 pick 时只看不点；给了 pick 就是按钮：filter 决定哪些牌能点，preview 显示升级后的样子。
+  function deckGrid(r, pick = null) {
+    const perks = perksOf(r), rank = e => (CARDS[e.id].kind === 'unit' ? 0 : 1000) + CARD_ORDER.indexOf(e.id) * 2 + (e.up ? 1 : 0);
+    const order = r.deck.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e));
+    return `<div class="deck-grid">${order.map(({ e, i }) => {
+      const ok = !pick?.filter || pick.filter(e), { c, html } = cardFace(pick?.preview && ok ? { ...e, up: true } : e, perks), cls = `pick ${c.kind === 'tactic' ? 'tactic-card' : ''} ${c.up ? 'up' : ''}`;
+      return pick ? `<button class="${cls}" data-deck="${i}" ${ok ? '' : 'disabled'}>${html}</button>` : `<div class="${cls}">${html}</div>`;
+    }).join('')}</div>`;
+  }
+  function openDeck() {
+    const r = run(), sheet = openSheet({ className: 'wide full', title: `${esc(t('deck.title'))} · ${esc(t('deck.count', { n: r.deck.length }))}`, body: `<p class="muted">${esc(t('deck.note', { n: handSize(r) }))}</p>${deckGrid(r)}` });
+    paintArt(sheet, skin());
+  }
+  // 从牌库里挑一张牌（删牌、升级）：点中就回调 done(牌库序号)；back 回到上一个窗口，什么都不花。
+  function pickCard({ title, note, filter = null, preview = false, done, back }) {
+    const r = run(), sheet = openSheet({ className: 'wide full', dismissable: false, title: esc(title), body: `<p class="muted">${esc(note)}</p>${deckGrid(r, { filter, preview })}<div class="actions"><button class="btn btn-paper" id="pick-back">${esc(t('common.back'))}</button></div>` });
+    paintArt(sheet, skin());
+    for (const b of $$('[data-deck]', sheet)) b.onclick = () => done(+b.dataset.deck);
+    $('#pick-back', sheet).onclick = back;
   }
   function render() {
     const r = run(), screen = $('#screen-run');
@@ -104,6 +128,7 @@ export function createRunUI(app) {
     paintArt(screen, skin());
     $('#run-home').onclick = () => app.go('home');
     $('#run-abandon').onclick = confirmAbandon;
+    $('#run-deck').onclick = openDeck;
     for (const b of $$('.rnode.open', screen)) b.onclick = () => pickNode(b.dataset.node);
   }
   function pickNode(id) {
@@ -120,67 +145,102 @@ export function createRunUI(app) {
   }
 
   // ---------- 节点弹窗 ----------
+  // 奖励或商品按钮里的内容：卡牌是整张牌面，其他是类别、图标、名字和说明。
+  const optionBody = v => v.face || `<span class="kind">${esc(v.kind)}</span>${v.art}<b>${esc(v.title)}</b><small>${esc(v.desc)}</small>`;
   function showReward() {
-    const r = run(), p = r.pending, two = p.options.length === 2;
+    const r = run(), p = r.pending, perks = perksOf(r), cards = p.options.some(o => o.kind === 'card'), two = p.options.length === 2;
     const title = { spoils: t('reward.spoils'), elite: t('reward.elite'), boss: t('reward.boss'), treasure: t('reward.treasure') }[p.kind] || t('reward.spoils');
+    const rows = (p.coins ? `<div class="row"><span>${esc(t('run.coins'))}${p.bounty ? ` · ${esc(t('reward.bounty', { n: p.bounty }))}` : ''}</span><b>+${p.coins} ${img('icons/coin.webp')}</b></div>` : '')
+      + (p.ink ? `<div class="row"><span>${esc(t('reward.ink'))}</span><b>+${p.ink} ${img('icons/ink.webp')}</b></div>` : '');
     const sheet = openSheet({
       className: 'wide', dismissable: false, kicker: esc(`${t('run.act', { n: r.act + 1 })} · ${chapterName(r.act)}`), title: esc(title),
-      body: `${p.coins ? `<div class="rewards"><div class="row"><span>${esc(t('run.coins'))}${p.bounty ? ` · ${esc(t('reward.bounty', { n: p.bounty }))}` : ''}</span><b>+${p.coins} ${img('icons/coin.webp')}</b></div></div>` : ''}
-        ${p.kind === 'boss' ? `<p class="muted">${esc(t('reward.bossBonus'))}</p>` : ''}<p class="muted">${esc(t('reward.pickOne'))}</p>
-        <div class="picks" style="${two ? 'grid-template-columns:repeat(2,1fr)' : ''}">${p.options.map((o, i) => { const v = optionView(o); return `<button class="pick ${v.rare ? 'rare' : ''}" data-pick="${i}"><span class="kind">${esc(v.kind)}</span>${v.art}<b>${esc(v.title)}</b><small>${esc(v.desc)}</small></button>`; }).join('')}</div>
-        <div class="actions"><button class="text-link" id="reward-skip">${esc(t('reward.skip'))}</button></div>`
+      body: `${rows ? `<div class="rewards">${rows}</div>` : ''}
+        ${p.kind === 'boss' ? `<p class="muted">${esc(t('reward.bossBonus'))}</p>` : ''}<p class="muted">${esc(t(cards ? 'reward.pickCard' : 'reward.pickOne'))}</p>
+        <div class="picks" style="${two ? 'grid-template-columns:repeat(2,1fr)' : ''}">${p.options.map((o, i) => { const v = optionView(o, perks); return `<button class="pick ${v.cls || ''} ${v.rare ? 'rare' : ''}" data-pick="${i}">${optionBody(v)}</button>`; }).join('')}</div>
+        <div class="actions"><button class="text-link" id="reward-skip">${esc(t(cards ? 'reward.skipCard' : 'reward.skip'))}</button></div>`
     });
     paintArt(sheet, skin());
     if (p.coins) audio.sfx('coin');
     for (const b of $$('[data-pick]', sheet)) b.onclick = () => {
       const o = r.pending.options[+b.dataset.pick];
       choose(r, +b.dataset.pick); app.persist(); closeSheet(true);
-      toast(t('toast.got', { name: optionView(o).title })); audio.sfx(o.kind === 'relic' ? 'unlock' : 'coin');
+      toast(t(o.kind === 'card' ? 'toast.added' : 'toast.got', { name: optionView(o).title })); audio.sfx(o.kind === 'relic' ? 'unlock' : 'coin');
       show();
     };
     $('#reward-skip', sheet).onclick = () => { choose(r, -1); app.persist(); closeSheet(true); show(); };
   }
-  function shopBlocked(r, s) { return s.sold ? t('shop.sold') : s.kind === 'heart' && r.hearts >= r.maxHearts ? t('shop.full') : (s.kind === 'unit' && r.deck.includes(s.type)) || (s.kind === 'relic' && r.relics.includes(s.id)) || (s.kind === 'upgrade' && r.upgrades.includes(s.type)) ? t('shop.owned') : r.coins < s.price ? t('shop.poor') : ''; }
+  function shopBlocked(r, s) {
+    if (s.sold) return t('shop.sold');
+    if (s.kind === 'heart' && r.hearts >= r.maxHearts) return t('shop.full');
+    if (s.kind === 'relic' && r.relics.includes(s.id)) return t('shop.owned');
+    if (s.kind === 'service' && s.service === 'remove' && r.deck.length <= MIN_DECK) return t('shop.minDeck', { n: MIN_DECK });
+    if (s.kind === 'service' && s.service === 'upgrade' && r.deck.every(e => e.up)) return t('shop.allUp');
+    return r.coins < s.price ? t('shop.poor') : '';
+  }
   function showShop() {
-    const r = run();
+    const r = run(), perks = perksOf(r), stock = r.pending.stock.map((s, i) => ({ s, i }));
+    const ware = ({ s, i }) => {
+      const v = optionView(s, perks), blocked = shopBlocked(r, s);
+      return `<button class="pick ${v.cls || ''} ${s.sold ? 'sold' : ''} ${v.rare ? 'rare' : ''}" data-buy="${i}" ${canBuy(r, i) ? '' : 'disabled'} ${v.face ? '' : tipAttrs(v.title, v.desc)}>${optionBody(v)}<span class="price">${s.sold ? esc(blocked) : `${img('icons/coin.webp')}${s.price}`}</span>${blocked && !s.sold ? `<small class="why">${esc(blocked)}</small>` : ''}</button>`;
+    };
     const sheet = openSheet({
-      className: 'wide', dismissable: false, title: `${img(nodeArt('shop'), 'coin-inline')} ${esc(t('shop.title'))}`,
-      body: `<p class="muted">${esc(t('shop.sub'))}</p><p style="margin-top:6px"><span class="pill">${img('icons/coin.webp')}${r.coins}</span></p>
-        <div class="shop-grid">${r.pending.stock.map((s, i) => { const v = optionView(s), blocked = shopBlocked(r, s); return `<button class="pick ${s.sold ? 'sold' : ''} ${v.rare ? 'rare' : ''}" data-buy="${i}" ${canBuy(r, i) ? '' : 'disabled'} ${tipAttrs(v.title, v.desc)}><span class="kind">${esc(v.kind)}</span>${v.art}<b>${esc(v.title)}</b><span class="price">${blocked && s.sold ? esc(blocked) : `${img('icons/coin.webp')}${s.price}`}</span>${blocked && !s.sold ? `<small>${esc(blocked)}</small>` : ''}</button>`; }).join('')}</div>
+      className: 'wide full', dismissable: false, title: `${img(nodeArt('shop'), 'coin-inline')} ${esc(t('shop.title'))}`,
+      body: `<div class="shop-head"><p class="muted">${esc(t('shop.sub'))}</p><span class="pill">${img('icons/coin.webp')}${r.coins}</span></div>
+        <div class="shop-grid">${stock.filter(x => x.s.kind === 'card').map(ware).join('')}</div>
+        <div class="shop-grid">${stock.filter(x => x.s.kind !== 'card').map(ware).join('')}</div>
         <div class="actions"><button class="btn btn-gold big block" id="shop-leave">${esc(t('shop.leave'))} ${icon('next')}</button></div>`
     });
     paintArt(sheet, skin());
-    for (const b of $$('[data-buy]', sheet)) b.onclick = () => { const s = r.pending.stock[+b.dataset.buy]; if (buy(r, +b.dataset.buy)) { app.persist(); audio.sfx('coin'); toast(t('toast.bought', { name: optionView(s).title })); showShop(); render(); } };
+    for (const b of $$('[data-buy]', sheet)) b.onclick = () => {
+      const i = +b.dataset.buy, s = r.pending.stock[i];
+      if (s.kind === 'service') { shopService(i, s); return; }
+      if (buy(r, i)) { app.persist(); audio.sfx('coin'); toast(t(s.kind === 'card' ? 'toast.added' : 'toast.bought', { name: optionView(s).title })); showShop(); render(); }
+    };
     $('#shop-leave', sheet).onclick = () => { leave(r); app.persist(); closeSheet(true); show(); };
   }
-  function showCamp(picking = false) {
-    const r = run(), done = r.pending.done, opts = campOptions(r);
-    const body = picking
-      ? `<p class="muted">${esc(t('camp.pick'))}</p><div class="picks">${r.deck.filter(type => !r.upgrades.includes(type)).map(type => `<button class="pick" data-train="${type}"><span class="kind">${esc(t('opt.kind.upgrade'))}</span><canvas width="168" height="168" data-unit="${type}" data-elite="1"></canvas><b>${esc(unitName(type))}</b><small>${esc(t(`upgrade.${type}`))}</small></button>`).join('')}</div><div class="actions"><button class="text-link" id="camp-back">${esc(t('common.back'))}</button></div>`
-      : done ? `<p>${esc(t('camp.done'))}</p><div class="actions"><button class="btn btn-gold big block" id="camp-leave">${esc(t('camp.leave'))} ${icon('next')}</button></div>`
-      : `<p class="muted">${esc(t('camp.sub'))}</p><div class="picks">${opts.map(o => `<button class="pick" data-camp="${o.id}" ${o.ok ? '' : 'disabled'}><span class="kind">${esc(t('camp.title'))}</span>${img(o.id === 'rest' ? 'icons/heart.webp' : o.id === 'study' ? 'icons/ink.webp' : nodeArt('battle'))}<b>${esc(t(`camp.${o.id}`))}</b><small>${esc(o.id === 'rest' && !o.ok ? t('camp.full') : t(`camp.${o.id}.desc`))}</small></button>`).join('')}</div>`;
+  // 军需官的删牌和升级：先挑一张牌再付钱；点返回就不花钱。
+  function shopService(i, s) {
+    const r = run(), up = s.service === 'upgrade';
+    pickCard({
+      title: t(`shop.${s.service}`), note: t(up ? 'pick.upgradePaid' : 'pick.removePaid', { n: s.price }), filter: up ? e => !e.up : null, preview: up,
+      done: d => { const name = cardName(r.deck[d].id); if (buy(r, i, d)) { app.persist(); audio.sfx(up ? 'unlock' : 'coin'); toast(t(up ? 'toast.upgraded' : 'toast.removed', { name })); render(); } showShop(); },
+      back: showShop
+    });
+  }
+  function showCamp() {
+    const r = run(), opts = campOptions(r), art = { rest: 'icons/heart.webp', upgrade: 'icons/star.webp', remove: 'icons/item-smoke.webp' };
+    const body = r.pending.done
+      ? `<p>${esc(t('camp.done'))}</p><div class="actions"><button class="btn btn-gold big block" id="camp-leave">${esc(t('camp.leave'))} ${icon('next')}</button></div>`
+      : `<p class="muted">${esc(t('camp.sub'))}</p><div class="picks">${opts.map(o => `<button class="pick" data-camp="${o.id}" ${o.ok ? '' : 'disabled'}><span class="kind">${esc(t('camp.title'))}</span>${img(art[o.id])}<b>${esc(t(`camp.${o.id}`))}</b><small>${esc(t(`camp.${o.id}.${o.ok ? 'desc' : 'no'}`, { n: o.id === 'rest' ? CAMP.rest : MIN_DECK }))}</small></button>`).join('')}</div>`;
     const sheet = openSheet({ className: 'wide', dismissable: false, title: `${img(nodeArt('camp'), 'coin-inline')} ${esc(t('camp.title'))}`, body });
-    paintArt(sheet, skin());
     for (const b of $$('[data-camp]', sheet)) b.onclick = () => {
-      if (b.dataset.camp === 'train') { showCamp(true); return; }
-      if (camp(r, b.dataset.camp)) { app.persist(); audio.sfx('unlock'); toast(t(b.dataset.camp === 'rest' ? 'opt.heart' : 'opt.ink', { n: b.dataset.camp === 'rest' ? CAMP.rest : CAMP.study })); render(); showCamp(); }
+      const id = b.dataset.camp, up = id === 'upgrade';
+      if (id === 'rest') { if (camp(r, 'rest')) { app.persist(); audio.sfx('unlock'); toast(t('opt.heart', { n: CAMP.rest })); render(); showCamp(); } return; }
+      pickCard({
+        title: t(`camp.${id}`), note: t(up ? 'pick.upgradeFree' : 'pick.removeFree'), filter: up ? e => !e.up : null, preview: up,
+        done: d => { const name = cardName(r.deck[d].id); if (camp(r, id, d)) { app.persist(); audio.sfx('unlock'); toast(t(up ? 'toast.upgraded' : 'toast.removed', { name })); render(); } showCamp(); },
+        back: showCamp
+      });
     };
-    for (const b of $$('[data-train]', sheet)) b.onclick = () => { if (camp(r, 'train', b.dataset.train)) { app.persist(); audio.sfx('unlock'); toast(t('toast.got', { name: t('opt.upgrade', { name: unitName(b.dataset.train) }) })); render(); showCamp(); } };
-    if ($('#camp-back', sheet)) $('#camp-back', sheet).onclick = () => showCamp();
     if ($('#camp-leave', sheet)) $('#camp-leave', sheet).onclick = () => { leave(r); app.persist(); closeSheet(true); show(); };
   }
+  // 奇遇里提到的牌：雇佣兵和补给箱给的新牌，或者书记官要升级的那张。
+  const eventTarget = r => (r.pending.index !== undefined ? r.deck[r.pending.index] || null : null);
   function eventLabel(r, id) {
-    const p = r.pending, key = `event.${p.event}.${id}`;
-    return t(key, { name: p.unit ? unitName(p.unit) : p.upgrade ? unitName(p.upgrade) : '', relic: p.relic ? relicName(p.relic) : '', item: p.item ? itemName(p.item) : '' });
+    const p = r.pending, target = eventTarget(r);
+    return t(`event.${p.event}.${id}`, { name: p.card ? cardName(p.card) : target ? cardName(target.id) : '', relic: p.relic ? relicName(p.relic) : '' });
   }
   function showEvent() {
-    const r = run(), p = r.pending;
+    const r = run(), p = r.pending, target = eventTarget(r);
+    const shown = p.card ? { id: p.card, up: false } : target ? { ...target, up: true } : null, face = shown && cardFace(shown, perksOf(r));
     const sheet = openSheet({
       dismissable: false, kicker: esc(t('node.event')), title: esc(t(`event.${p.event}`)),
       body: `${img(nodeArt('event'), 'event-art')}<p>${esc(t(`event.${p.event}.text`))}</p>
         ${p.relic ? `<div class="option" style="margin-top:10px" ${tipAttrs(relicName(p.relic), t(`relic.${p.relic}.desc`))}>${img(`icons/relic-${p.relic}.webp`)}<span><b>${esc(relicName(p.relic))}</b><small>${esc(t(`relic.${p.relic}.desc`))}</small></span></div>` : ''}
+        ${face ? `<div class="event-card"><div class="pick ${face.c.kind === 'tactic' ? 'tactic-card' : ''} ${shown.up ? 'up' : ''}">${face.html}</div></div>` : ''}
         <div class="actions">${eventChoices(r).map(c => `<button class="btn ${c.ok ? 'btn-gold' : 'btn-paper'} block" data-choice="${c.id}" ${c.ok ? '' : 'disabled'}>${esc(eventLabel(r, c.id))}</button>`).join('')}</div>`
     });
+    paintArt(sheet, skin());
     for (const b of $$('[data-choice]', sheet)) b.onclick = () => {
       const label = eventLabel(r, b.dataset.choice);
       if (resolveEvent(r, b.dataset.choice)) { app.persist(); closeSheet(true); audio.sfx('unlock'); toast(label, 2400); show(); }

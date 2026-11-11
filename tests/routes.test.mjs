@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Battle, unitDef, RELIC_FX } from '../src/engine.mjs';
 import { TYPES, W, H, MARGIN } from '../src/data.mjs';
 import { shapeRoute, fitRoute, ROUTE } from '../src/routes.mjs';
-import { runMods, RELICS, UPGRADES } from '../src/relics.mjs';
+import { runMods, RELICS } from '../src/relics.mjs';
 import { center } from '../src/combat.mjs';
 
 const sandbox = (blue, red, mods) => { const g = new Battle({ index: -1, budget: 999, enemies: [], rocks: [] }, { sandbox: true, mods }); for (const [t, x, y] of blue) assert.equal(g.place(t, x, y, 0), true); for (const [t, x, y] of red) assert.equal(g.place(t, x, y, 1), true); return g; };
@@ -76,11 +76,11 @@ test('驻守的医师只治疗够得着的人；没有命令的兵种行为不�
   assert.ok(near.hp > 40, '射程内的队友得到治疗'); assert.equal(far.hp, 40, '射程外的不治疗'); assert.equal(healer.x, 120, '医师没有离开驻守点');
 });
 
-test('遗物与精锐升级合成战斗修正：倍率叠乘、墨水打折、扩编', () => {
-  const mods = runMods({ relics: ['thick', 'thrift', 'squad', 'longbow', 'swift'], upgrades: ['knight', 'archer'] }, { hp: 1.1 });
+test('遗物合成战斗修正：倍率叠乘、墨水打折、扩编', () => {
+  const mods = runMods({ relics: ['thick', 'thrift', 'squad', 'longbow', 'swift'] }, { hp: 1.1 });
   const knight = unitDef('knight', 0, mods);
-  assert.ok(Math.abs(knight.hp - TYPES.knight.hp * 1.15 * UPGRADES.knight.hp) < 1e-9);
-  assert.ok(Math.abs(unitDef('archer', 0, mods).range - TYPES.archer.range * 1.15 * UPGRADES.archer.range) < 1e-9);
+  assert.ok(Math.abs(knight.hp - TYPES.knight.hp * 1.15) < 1e-9);
+  assert.ok(Math.abs(unitDef('archer', 0, mods).range - TYPES.archer.range * 1.15) < 1e-9);
   assert.equal(unitDef('knight', 1, mods).hp, TYPES.knight.hp * 1.1, '敌军只吃敌军强化');
   assert.equal(mods.cost.giant, Math.round(TYPES.giant.cost * .9)); assert.equal(mods.teamLimit, 12); assert.equal(mods.flags.swift, true);
   assert.equal(new Battle(0, { mods }).cost('guard'), Math.round(TYPES.guard.cost * .9));
