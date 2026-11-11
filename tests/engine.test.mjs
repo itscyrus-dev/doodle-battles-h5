@@ -7,7 +7,12 @@ test('橡皮退款；撤销橡皮恢复阵容',()=>{const g=new Battle();g.place
 test('暂停冻结时间，急救每场一次、不复活死亡队员，战斗不改原阵容',()=>{const g=new Battle();g.place('guard',150,370);const plan=structuredClone(g.plan);g.start();g.phase='paused';g.update(2);assert.equal(g.elapsed,0);g.phase='battle';g.units[0].hp=50;assert.equal(g.heal(),true);assert.equal(g.units[0].hp,107);assert.equal(g.heal(),false);assert.deepEqual(g.plan,plan);assert.equal(g.place('knight',200,400),false);});
 test('护卫减免远程伤害，爆破能伤害多个目标',()=>{const g=new Battle();g.place('guard',100,400);g.start();g.hit(g.units[0],100,null,true);assert.equal(g.units[0].hp,135);const a=g.units[1],b=g.units[2];a.x=200;a.y=200;b.x=210;b.y=200;g.shots.push({x:200,y:200,tx:200,ty:200,type:'bomber',team:0,speed:210,damage:33,t:0});g.update(1/60);assert.ok(a.hp<a.max);assert.ok(b.hp<b.max);});
 test('沙盒需要两队；弱阵容确实失败；胜利结果和星级由模拟决定',()=>{const g=new Battle(0,true);g.place('archer',50,400);assert.equal(g.start(),false);g.place('giant',50,150,1);assert.equal(g.start(),true);assert.equal(run(g),'lost');assert.equal(starsFor(g),0);});
-for(let level=0;level<10;level++)test(`关卡 ${level+1} 在合法配额与预算内存在获胜阵容`,()=>{const g=new Battle(level),solution=solutions[level];for(const u of solution.plan)assert.equal(g.place(u.type,u.x,u.y,u.team),true);g.start();for(let i=0;i<5000&&g.phase==='battle';i++){if(g.units.some(u=>!u.team&&u.hp>0&&u.hp<u.max*.65))g.useItem();g.update(1/60);}assert.equal(g.phase,'won');assert.ok(g.remaining>=0);});
+// 每关一个不靠道具也能获胜的阵容：只用本关已解锁的兵种，在预算和配额内。
+for(let level=0;level<LEVELS.length;level++)test(`关卡 ${level+1} 存在不靠道具的获胜阵容，星级与记录一致`,()=>{
+ const g=new Battle(level),solution=solutions[level];assert.equal(solution.level,level+1);
+ for(const u of solution.plan){assert.ok(TYPES[u.type].unlock<=level,`${u.type} 在第${level+1}关还没解锁`);assert.equal(g.place(u.type,u.x,u.y,u.team),true);}
+ g.start();run(g);assert.equal(g.phase,'won');assert.equal(g.itemUsed,false);assert.ok(g.remaining>=0);assert.equal(starsFor(g),solution.stars);
+});
 
 import {center,muzzle,wrapAngle,ANGLE_TOLERANCE} from '../src/combat.mjs';
 function duel(type='archer'){
@@ -54,13 +59,13 @@ test('各兵种限额与全队10人上限；红蓝配额独立，非法位置不
   const g=new Battle(0,true);
   for(let i=0;i<def.limit;i++)assert.equal(g.place(type,50+i*70,400),true);
   assert.equal(g.place(type,50,500),false);
-  assert.match(g.placementError(type,50,500),/最多/);
+  assert.equal(g.placementError(type,50,500),'type-full');
   assert.equal(g.place(type,50,150,1),true);
  }
  const g=new Battle(0,true);
  const types=['knight','knight','knight','knight','knight','archer','archer','archer','archer','guard'];
  types.forEach((type,i)=>assert.equal(g.place(type,55+(i%5)*80,380+Math.floor(i/5)*100),true));
- assert.equal(g.count(null),TEAM_LIMIT);assert.match(g.placementError('bomber',100,570),/全队最多/);
+ assert.equal(g.count(null),TEAM_LIMIT);assert.equal(g.placementError('bomber',100,570),'team-full');
  assert.equal(g.place('bomber',100,570),false);assert.equal(g.place('bomber',100,150,1),true);
 });
 test('零墨水时仍可移动；碰撞与越界退回原位；移位和回收都可以撤销',()=>{
@@ -75,8 +80,20 @@ test('零墨水时仍可移动；碰撞与越界退回原位；移位和回收�
  g.undo();assert.equal(g.remaining,0);assert.equal(g.count('knight'),3);
  g.start();assert.equal(g.move(pid,100,560),false);assert.equal(g.remove(pid),false);
 });
-test('十个关卡敌方阵容同样遵守数量上限',()=>{
- for(const level of LEVELS){assert.ok(level.enemies.length<=TEAM_LIMIT);for(const [type,def]of Object.entries(TYPES))assert.ok(level.enemies.filter(u=>u.type===type).length<=def.limit);}
+test('每关敌军不超过12人，都站在敌方半场内，彼此不重叠',()=>{
+ for(const level of LEVELS){
+  assert.ok(level.enemies.length>=5&&level.enemies.length<=12,`第${level.index+1}关敌军 ${level.enemies.length} 人`);
+  for(const u of level.enemies){assert.ok(TYPES[u.type]);assert.equal(u.team,1);assert.ok(u.x>=25&&u.x<=495&&u.y>=65&&u.y<285,`第${level.index+1}关 ${u.type} 位置越界`);}
+  for(let i=0;i<level.enemies.length;i++)for(let j=i+1;j<level.enemies.length;j++){const a=level.enemies[i],b=level.enemies[j];assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>=24,`第${level.index+1}关敌军站位重叠`);}
+ }
+});
+test('布阵错误返回代码而不是文字，界面再按语言翻译',()=>{
+ const g=new Battle();assert.equal(g.placementError('knight',40,200),'zone-blue');assert.equal(g.placementError('knight',5,400),'bounds');assert.equal(g.placementError('dragon',100,400),'invalid');
+ g.place('knight',100,400);assert.equal(g.placementError('knight',105,402),'overlap');
+ const rocky=new Battle(7);assert.equal(rocky.placementError('guard',125,340),'rock');
+ const wet=new Battle(32);assert.equal(wet.placementError('guard',60,340),'pond');
+ const poor=new Battle();for(const [x,y]of[[60,400],[160,400],[260,400],[360,400],[460,400]])poor.place('guard',x,y)||poor.place('archer',x,y);assert.equal(poor.placementError('giant',260,520),'ink');
+ poor.start();assert.equal(poor.placementError('knight',100,560),'phase');
 });
 test('同一批兵调整前后排可以改变胜负，复盘只引用真实战斗数据',()=>{
  function formation(front){const g=new Battle(0,true);
@@ -88,8 +105,8 @@ test('同一批兵调整前后排可以改变胜负，复盘只引用真实战�
  const protectedRear=formation(true),exposedRear=formation(false);
  assert.equal(protectedRear.phase,'won');assert.equal(exposedRear.phase,'lost');
  assert.equal(protectedRear.stats[0].backlineDeaths,0);assert.equal(exposedRear.stats[0].backlineDeaths,3);
- assert.ok(protectedRear.stats[0].blocked>0);assert.match(report(exposedRear).tip,/往前放/);
- assert.ok(report(exposedRear).observations.some(line=>line.includes('3 名')));
+ assert.ok(protectedRear.stats[0].blocked>0);assert.equal(report(exposedRear).tip.key,'tip.frontline');
+ assert.ok(report(exposedRear).observations.some(o=>o.key==='obs.backlineDeaths'&&o.params.n===3));
 });
 test('前排护卫实际挡住飞向后排的箭，聚集单位实际受到爆炸范围伤害',()=>{
  const g=new Battle(0,true);g.place('guard',200,360);g.place('archer',200,480);g.place('archer',200,180,1);g.start();

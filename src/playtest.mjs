@@ -1,4 +1,4 @@
-export const PLAYTEST_VERSION='0.3.0';
+export const PLAYTEST_VERSION='0.9.0';
 const KEY='doodle-playtest-v1',LIMIT=500;
 const ALLOWED=new Set(['session_start','level_enter','battle_start','battle_end','formation_move','formation_remove','formation_place','placement_rejected','guide_step','guide_skip','guide_complete','item_used','performance','feedback']);
 const FIELDS=new Set(['level','sandbox','units','spent','item','outcome','seconds','survivors','stars','type','reason','step','frames','avgFrameMs','p95FrameMs','rating','difficulty','comment','speed']);

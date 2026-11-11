@@ -2,3 +2,6 @@
 __pycache__/
 .DS_Store
 dist/
+
+# 生图原图和回执（体积大，可重新生成；优化后的成品在 assets/）
+art/inbox/

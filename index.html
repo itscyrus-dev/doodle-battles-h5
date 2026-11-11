@@ -1,1 +1,82 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f6f3e9"><title>涂鸦小队 · Draw & Clash</title><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="styles.css"></head><body class="loading"><aside class="intro"><div class="eyebrow">DRAW & CLASH / 01</div><h1>把战术，<br>画出来。</h1><p>一笔画出你的小队。<br>剩下的，交给他们。</p><div class="sketch">✎ <span>一点想象力<br>一场小小的大战</span></div><small>原创 H5 试玩 · 无需下载</small></aside><main id="app"><div id="loading-splash"><div class="loading-flag">⚑</div><strong>涂鸦小队</strong><p id="loading-status" role="status">正在整理小队…</p><button id="retry-loading" hidden>重新加载</button><noscript>请开启浏览器 JavaScript 后重试。</noscript></div><header><a class="brand" href="./"><span class="brandmark">⚑</span> 涂鸦小队<small>DRAW & CLASH</small></a><div class="header-actions"><button id="sound" class="icon" aria-label="开启音效">♪</button><button id="playtest" class="icon" aria-label="试玩反馈与记录">✎</button><button id="help" class="icon" aria-label="游戏说明">?</button></div></header><div class="mode"><button id="campaign" class="active">闯关挑战</button><button id="sandbox">自由沙盒</button></div><section class="brief"><button id="levels"><small id="chapter">CHAPTER 01 / 10</small><strong id="leveltitle">初次交锋 <span>⌄</span></strong></button><div class="budget"><small id="budgetlabel">可用墨水</small><strong><span id="budget">90</span><em id="maxbudget">/90</em></strong></div></section><button id="campaign-map" class="campaign-strip" aria-label="打开十关闯关地图"><span>关卡地图 <b id="campaign-progress">0 / 10 已通关</b></span><span id="campaign-stars">★ 0 / 30　→</span></button><section id="coach" hidden><div><b id="coach-title"></b><p id="coach-text"></p></div><button id="skip-coach" aria-label="收起本关引导">收起</button></section><div id="stage-tip" class="stage-tip"></div><div class="arena-wrap"><canvas id="arena" aria-label="布阵战场：拖入兵种、拖动士兵调整位置，拖回下方回收"></canvas><div class="battle-top"><span class="team blue"><i></i> 我方 <b id="bluecount">0</b></span><span class="clock"><span id="timer">布阵阶段</span><button id="speed" hidden aria-pressed="false" aria-label="切换战斗倍速，不影响结果和星级">1×</button></span><span class="team red">敌方 <b id="redcount">5</b><i></i></span></div><div id="inspection-info" hidden><div><b id="inspection-title"></b><small id="inspection-status"></small></div><button id="clear-inspection" aria-label="收起战术预览">×</button></div><div id="combat-alert" hidden role="status"></div><div id="dragstatus" hidden role="status"></div><div id="recycle">⌫ 拖到这里回收 · 退还墨水</div><div id="hint">在蓝色区域画一笔，召集你的小队</div><button id="autofill">✧ 帮我布阵</button><div id="toast" role="status" aria-live="polite"></div></div><section class="toolbar"><div class="tools-caption"><button id="selectedinfo" class="unit-info-trigger" aria-label="打开所选兵种说明">先锋 · 近战突击</button><div><button id="undo" aria-label="撤销上次布阵">↶ 撤销</button><button id="erase" aria-pressed="false">⌫ 橡皮</button></div></div><div id="roster"></div></section><footer><button id="clear" class="secondary">清空</button><button id="start" class="primary">开始战斗 <span>↗</span></button><button id="heal" class="secondary" hidden>急救旗 ×1</button></footer><div class="footnote">单机闯关 · 10关挑战 · 进度自动保存</div><div id="overlay" hidden><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle"><button id="close" class="icon close" aria-label="关闭弹窗">×</button><div id="sheetcontent"></div></section></div></main><aside class="notes"><span class="eyebrow">FIELD NOTES</span><h2>你的第一笔，<br>就是第一步。</h2><ol><li><b>01</b><span>挑选兵种<small>护卫扛伤，弓手输出。</small></span></li><li><b>02</b><span>画出阵型<small>点击放一个，滑动放一排。</small></span></li><li><b>03</b><span>开战，观察，再调整<small>没有标准答案，试试新的组合。</small></span></li></ol><p>空格 开战 / 暂停　F 倍速　Z 撤销</p></aside><script type="module" src="src/bootstrap.mjs"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#22304a">
+<meta name="description" content="Draw & Clash — draw your squad, then watch it fight. A cozy tactics game with 40 hand-made levels. 涂鸦小队：画出你的小队，看他们自己打完这一仗。">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Draw & Clash">
+<title>Draw &amp; Clash · 涂鸦小队</title>
+<link rel="icon" type="image/png" href="assets/icon/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" as="image" href="assets/bg/home.webp" type="image/webp">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="backdrop" aria-hidden="true"></div>
+<main id="app">
+  <section id="screen-boot" class="screen">
+    <img class="boot-logo" src="assets/ui/logo.webp" alt="Draw &amp; Clash" draggable="false">
+    <div class="boot-bar" aria-hidden="true"><i id="boot-fill"></i></div>
+    <p id="boot-status" role="status">Loading…</p>
+    <button id="boot-retry" class="btn btn-gold" hidden>Reload</button>
+    <noscript>Please enable JavaScript to play. 请开启浏览器 JavaScript 后重试。</noscript>
+  </section>
+
+  <section id="screen-home" class="screen" hidden></section>
+  <section id="screen-map" class="screen" hidden></section>
+
+  <section id="screen-battle" class="screen" hidden>
+    <header class="b-top">
+      <button id="b-back" class="ibtn dark"></button>
+      <div class="b-title"><small id="b-chapter"></small><strong id="b-name"></strong></div>
+      <div class="ink-pill" id="b-inkpill"><img src="assets/icons/ink.webp" alt="" draggable="false"><b id="b-ink">0</b><span id="b-inkmax"></span></div>
+    </header>
+    <div class="b-arena" id="b-arena">
+      <canvas id="arena"></canvas>
+      <div class="hud">
+        <div class="hud-team blue"><span id="hud-blue-name"></span><b id="hud-blue">0</b><i class="bar"><em id="hud-blue-bar"></em></i></div>
+        <div class="hud-mid"><span id="hud-time"></span><button id="b-speed" hidden aria-pressed="false">1×</button></div>
+        <div class="hud-team red"><i class="bar"><em id="hud-red-bar"></em></i><b id="hud-red">0</b><span id="hud-red-name"></span></div>
+      </div>
+      <section id="coach" hidden><div><b id="coach-title"></b><p id="coach-text"></p></div><button id="coach-skip" class="chip-btn"></button></section>
+      <div id="b-alert" hidden role="status"></div>
+      <div id="b-target" hidden role="status"></div>
+      <button id="b-autofill" class="btn btn-paper small" hidden></button>
+      <div id="b-inspect" hidden><div><b id="b-inspect-title"></b><small id="b-inspect-status"></small></div><button id="b-inspect-close" class="ibtn tiny"></button></div>
+      <div id="dragstatus" hidden role="status"></div>
+      <div id="recycle"></div>
+      <button id="b-hint" class="ibtn gold"></button>
+      <div id="b-tip"></div>
+    </div>
+    <div class="b-tray" id="b-tray">
+      <div class="tray-build" id="tray-build">
+        <div id="roster" class="roster"></div>
+        <div class="b-controls">
+          <button id="b-undo" class="ibtn"></button>
+          <button id="b-erase" class="ibtn" aria-pressed="false"></button>
+          <button id="b-clear" class="ibtn"></button>
+          <button id="b-item" class="item-slot"></button>
+          <button id="b-start" class="btn btn-gold big"></button>
+        </div>
+      </div>
+      <div class="tray-fight" id="tray-fight" hidden>
+        <button id="b-use" class="use-item"></button>
+        <div class="fight-side">
+          <button id="b-pause" class="btn btn-paper"></button>
+          <button id="b-redeploy" class="btn btn-paper"></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="overlay" hidden><section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></section></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+</main>
+<script type="module" src="src/bootstrap.mjs"></script>
+</body>
+</html>

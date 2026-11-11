@@ -12,8 +12,8 @@ for(const [level,weak,weakLayout,strong,strongLayout]of[
  assert.equal(run(make(weak,weakLayout)).phase,'lost');
  assert.equal(run(make(strong,strongLayout)).phase,'won');
 });
-test('十关有不同的敌军空间布局，包含窄口、夹击、火力分区',()=>{
- assert.equal(new Set(LEVELS.map(l=>JSON.stringify(l.enemies.map(u=>[u.x,u.y])))).size,10);
+test('每关的敌军空间布局都不同，包含窄口、夹击、火力分区',()=>{
+ assert.equal(LEVELS.length,40);assert.equal(new Set(LEVELS.map(l=>JSON.stringify(l.enemies.map(u=>[u.type,u.x,u.y])))).size,LEVELS.length);
  assert.ok(LEVELS[7].rocks.length===2);assert.ok(LEVELS[6].enemies.some(u=>u.x<100)&&LEVELS[6].enemies.some(u=>u.x>400));
  for(const l of LEVELS)for(const u of l.enemies)assert.ok(l.rocks.every(o=>Math.hypot(o.x-u.x,o.y-u.y)>o.r+TYPES[u.type].r));
 });

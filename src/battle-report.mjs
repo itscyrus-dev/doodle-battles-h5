@@ -1,28 +1,42 @@
-import {TYPES} from './data.mjs';
-export function rosterKey(g){return `${g.sandbox?'sandbox':g.level}:`+g.plan.map(u=>`${u.team}:${u.type}`).sort().join(',');}
-export function report(g){
-  const s=g.stats?.[0]||{blocked:0,explosionTaken:0,backlineDeaths:0};
-  const observations=[];
-  if(g.itemUsed){
-    if(g.selectedItem==='heal')observations.push(`急救旗实际恢复 ${Math.round(g.itemStats.healed)} 点生命。`);
-    if(g.selectedItem==='smoke')observations.push(`烟雾实际减免 ${Math.round(g.itemStats.prevented)} 点箭矢伤害。`);
-    if(g.selectedItem==='rally')observations.push(`集结期间我方完成 ${g.itemStats.boostedAttacks} 次攻击。`);
+// 战后复盘：只引用战斗里真实记录的数据。返回文案代码和参数，由界面按语言生成句子。
+import { TYPES, UNIT_ORDER } from './data.mjs';
+
+export function rosterKey(g) { return `${g.sandbox ? 'sandbox' : g.level}:` + g.plan.map(u => `${u.team}:${u.type}`).sort().join(','); }
+
+export function report(g) {
+  const s = g.stats?.[0] || { blocked: 0, explosionTaken: 0, backlineDeaths: 0, byType: {} };
+  const round = Math.round, observations = [];
+  const say = (key, params = {}) => observations.push({ key, params });
+  if (g.itemUsed) {
+    if (g.selectedItem === 'heal') say('obs.itemHeal', { n: round(g.itemStats.healed) });
+    if (g.selectedItem === 'smoke') say('obs.itemSmoke', { n: round(g.itemStats.prevented) });
+    if (g.selectedItem === 'rally') say('obs.itemRally', { n: g.itemStats.boostedAttacks });
+    if (g.selectedItem === 'thunder') say('obs.itemThunder', { n: g.itemStats.struck, damage: round(g.itemStats.strikeDamage) });
+    if (g.selectedItem === 'frost') say('obs.itemFrost', { n: g.itemStats.frozen });
   }
-  if(s.blocked>0)observations.push(`护卫累计抵挡 ${Math.round(s.blocked)} 点远程伤害。`);
-  if(s.backlineDeaths>0)observations.push(`${s.backlineDeaths} 名弓手或爆破手倒下。`);
-  if(s.explosionTaken>0)observations.push(`我方承受了 ${Math.round(s.explosionTaken)} 点爆炸伤害。`);
-  if(!observations.length)observations.push(`存活 ${g.units.filter(u=>u.team===0&&u.hp>0).length} / ${g.plan.filter(u=>u.team===0).length} 人，战斗持续 ${g.elapsed.toFixed(1)} 秒。`);
-  if(s.stoneArrows>0)observations.push(`本场 ${s.stoneArrows} 支我方箭矢撞上巨石。`);
-  if(s.firstLoss)observations.push(`最早阵亡：${TYPES[s.firstLoss.type].name}，发生在 ${s.firstLoss.time.toFixed(1)} 秒。`);
-  const rows=Object.entries(TYPES).flatMap(([type,d])=>{
-    const units=g.units.filter(u=>u.team===0&&u.type===type);if(!units.length)return [];
-    const stats=s.byType?.[type]||{dealt:0,taken:0};return [{type,name:d.name,...stats,total:units.length,alive:units.filter(u=>u.hp>0).length}];
+  const mended = s.byType?.healer?.healed || 0;
+  if (mended > 0) say('obs.mended', { n: round(mended) });
+  if (s.blocked > 0) say('obs.blocked', { n: round(s.blocked) });
+  if (s.charges > 0) say('obs.charges', { n: s.charges });
+  if (s.backlineDeaths > 0) say('obs.backlineDeaths', { n: s.backlineDeaths });
+  if (s.explosionTaken > 0) say('obs.explosion', { n: round(s.explosionTaken) });
+  if (s.chilled > 0) say('obs.chilled', { n: s.chilled });
+  if (!observations.length) say('obs.summary', { alive: g.units.filter(u => u.team === 0 && u.hp > 0).length, total: g.plan.filter(u => u.team === 0).length, time: g.elapsed.toFixed(1) });
+  if (s.stoneArrows > 0) say('obs.stoneArrows', { n: s.stoneArrows });
+  if (s.firstLoss) say('obs.firstLoss', { type: s.firstLoss.type, time: s.firstLoss.time.toFixed(1) });
+
+  const rows = UNIT_ORDER.flatMap(type => {
+    const units = g.units.filter(u => u.team === 0 && u.type === type); if (!units.length) return [];
+    const stats = s.byType?.[type] || { dealt: 0, taken: 0, healed: 0 };
+    return [{ type, dealt: stats.dealt, taken: stats.taken, healed: stats.healed || 0, total: units.length, alive: units.filter(u => u.hp > 0).length }];
   });
-  const ranged=g.plan.some(u=>u.team===0&&['archer','bomber'].includes(u.type));
-  let tip='试着集中一侧兵力，观察哪一组先接敌；每次只移动几名士兵，更容易看出效果。';
-  if(s.explosionTaken>g.stats?.[0].damageTaken*.3)tip='下次尝试：拉开士兵间距，降低一次爆炸同时伤到多人的风险。';
-  else if(s.backlineDeaths>0&&ranged)tip='下次尝试：把护卫和先锋往前放，弓手与爆破手往后挪，让近战先接敌。';
-  else if(g.phase==='won'&&s.blocked>0)tip='这次护卫确实减少了远程伤害。可以保留前排，再微调后排距离，挑战更多存活人数。';
-  if(s.stoneArrows>0)tip=`下次尝试：本场 ${s.stoneArrows} 支箭被巨石挡住。把弓手移到侧翼，或换用能越石投弹的爆破手，再比较结果。`;
-  return {observations,tip,rows};
+
+  const hasBackline = g.plan.some(u => u.team === 0 && TYPES[u.type].backline);
+  let tip = { key: 'tip.default', params: {} };
+  if (s.explosionTaken > (g.stats?.[0].damageTaken || 0) * .3) tip = { key: 'tip.spread', params: {} };
+  else if (s.backlineDeaths > 0 && hasBackline) tip = { key: 'tip.frontline', params: {} };
+  else if (s.chilled >= 3 && g.phase !== 'won') tip = { key: 'tip.chill', params: {} };
+  else if (g.phase === 'won' && s.blocked > 0) tip = { key: 'tip.guardsWorked', params: {} };
+  if (s.stoneArrows > 0) tip = { key: 'tip.stone', params: { n: s.stoneArrows } };
+  return { observations, tip, rows };
 }
