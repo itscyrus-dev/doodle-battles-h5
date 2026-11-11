@@ -1,0 +1,17 @@
+{
+  "name": "Draw & Clash · 涂鸦小队",
+  "short_name": "Draw & Clash",
+  "description": "Draw your squad, then watch it fight. A cozy tactics game with 40 hand-made levels.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#8fd0f5",
+  "theme_color": "#22304a",
+  "categories": ["games", "strategy"],
+  "icons": [
+    { "src": "assets/icon/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,172 +1,290 @@
-import {Battle} from './engine.mjs';import {TYPES,LEVELS,starsFor,TEAM_LIMIT,ITEMS} from './data.mjs';import {Renderer,drawUnit} from './render.mjs';
-import {FormationInput} from './formation-input.mjs';
-import {report,rosterKey} from './battle-report.mjs';
-import {normalizeProgress,campaignSummary,recordVictory} from './progression.mjs';
-import {campaignMarkup} from './campaign.mjs';
-import {guideStep,UNIT_GUIDE,SPOTLIGHTS} from './first-session.mjs';
-import {PlaytestLog,FrameSamples,PLAYTEST_VERSION} from './playtest.mjs';
-import {draftOf} from './drafts.mjs';
-const $=id=>document.getElementById(id);
-let rawSave=null;try{rawSave=JSON.parse(localStorage.getItem('doodle-battles-v1'));}catch{}
-let save=normalizeProgress(rawSave);const metrics=new PlaytestLog();metrics.record('session_start');let frameSamples=new FrameSamples();const lessonFlags=new Map();let lastGuideKey='';const flags=()=>{if(!lessonFlags.has(g.level))lessonFlags.set(g.level,{...save.lessonActions[g.level]});return lessonFlags.get(g.level);};
-let g=new Battle(save.currentLevel),selected=save.currentLevel===0&&!save.guides[0]?'guard':'knight',eraser=false,shown=false,ac,input=null,quotaTeam=0,speed=save.speed,beat=null,lastBuzz=0,noiseBuffer=null;g.selectedItem=save.item;g.plan=structuredClone(save.formations[g.level]||[]);g.serial=g.plan.length;const renderer=new Renderer($('arena'));window.__game=g;const motion=matchMedia('(prefers-reduced-motion: reduce)');motion.addEventListener('change',e=>{renderer.reduced=e.matches;});let progressSaved=true;const persist=()=>{try{localStorage.setItem('doodle-battles-v1',JSON.stringify(save));progressSaved=true;}catch{progressSaved=false;}};// 程序合成音效：不同兵种动作各有声音，同类声音50毫秒内只响一次，避免嘈杂。
-function sound(kind){
- if(!save.sound)return;
- try{
-  ac??=new AudioContext();ac.resume();const now=ac.currentTime;
-  sound.last??={};if(now-(sound.last[kind]??-1)<.05)return;sound.last[kind]=now;
-  if(!noiseBuffer){noiseBuffer=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuffer.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
-  const tone=(type,f0,f1,dur,vol,at=0)=>{const o=ac.createOscillator(),v=ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,now+at);o.frequency.exponentialRampToValueAtTime(f1,now+at+dur);v.gain.setValueAtTime(vol,now+at);v.gain.exponentialRampToValueAtTime(.0005,now+at+dur);o.connect(v);v.connect(ac.destination);o.start(now+at);o.stop(now+at+dur+.02);};
-  const noise=(dur,vol,hz)=>{const s=ac.createBufferSource(),f=ac.createBiquadFilter(),v=ac.createGain();s.buffer=noiseBuffer;f.type='lowpass';f.frequency.setValueAtTime(hz,now);f.frequency.exponentialRampToValueAtTime(Math.max(60,hz*.2),now+dur);v.gain.setValueAtTime(vol,now);v.gain.exponentialRampToValueAtTime(.0005,now+dur);s.connect(f);f.connect(v);v.connect(ac.destination);s.start(now,Math.random()*.4,dur+.02);};
-  const kinds={
-   place:()=>tone('sine',620,400,.09,.03),
-   hit:()=>{noise(.06,.045,2600);tone('triangle',190,120,.07,.022);},
-   block:()=>tone('square',1300,1150,.06,.01),
-   shoot:()=>tone('triangle',880,500,.07,.016),
-   toss:()=>tone('sine',300,520,.12,.014),
-   slam:()=>{noise(.18,.07,600);tone('sine',120,55,.2,.05);},
-   boom:()=>{noise(.5,.12,1100);tone('sine',95,40,.4,.07);},
-   won:()=>[523,659,784,1047].forEach((f,i)=>tone('triangle',f,f*.99,.2,.035,i*.09)),
-   lost:()=>[392,311,262].forEach((f,i)=>tone('sine',f,f*.92,.24,.03,i*.13))
+// 主程序：启动、主页、关卡地图和各个弹层（关卡详情、图鉴、配色、悬赏、成就、设置）。
+import { LEVELS, CHAPTERS, TYPES, ITEMS, UNIT_ORDER, ITEM_ORDER, LEVELS_PER_CHAPTER, TEAM_LIMIT, unitUnlocked, itemUnlocked } from './data.mjs';
+import { t, pick, setLang, lang, detectLang, LANGUAGES } from './i18n.mjs';
+import { preload, CORE_IMAGES, assetUrl, PALETTES, drawUnitImage, loadImage } from './assets.mjs';
+import { paintUnit } from './render.mjs';
+import * as audio from './audio.mjs';
+import { loadSave, writeSave, normalizeSave, campaignSummary, chapterSummary, SAVE_KEY, LEGACY_KEY } from './save.mjs';
+import { SKINS, ACHIEVEMENTS, REWARDS, DAILY_MIN_CLEARED, ensureDaily, buySkin, equipSkin, claimAchievements } from './meta.mjs';
+import { SPOTLIGHTS } from './first-session.mjs';
+import { PlaytestLog, PLAYTEST_VERSION } from './playtest.mjs';
+import { $, $$, esc, icon, img, starsMarkup, toast, openSheet, closeSheet, initOverlay, canVibrate, setHaptics, buzz } from './ui.mjs';
+import { createBattle } from './battle.mjs';
+
+const storage = (() => { try { const s = globalThis.localStorage; s.getItem('x'); return s; } catch { return { getItem: () => null, setItem: () => { throw new Error('no storage'); }, removeItem: () => {} }; } })();
+const loaded = loadSave(storage);
+const app = {
+  save: loaded.save, screen: 'boot', chapter: 0, metrics: new PlaytestLog(), storageOk: true,
+  persist() { const ok = writeSave(storage, app.save); if (!ok && app.storageOk) toast(t('toast.storage'), 3200); app.storageOk = ok; },
+  show, go
+};
+setLang(app.save.settings.lang || detectLang());
+let battle = null, squadTimer = 0;
+const unitName = type => t(`unit.${type}.name`), itemName = id => t(`item.${id}.name`);
+const levelLabel = i => `${t('common.level', { n: i + 1 })} · ${pick(LEVELS[i].title)}`;
+
+function applySettings() {
+  const s = app.save.settings;
+  audio.configure({ music: s.music, sfx: s.sfx }); setHaptics(s.haptics);
+  document.body.classList.toggle('reduced', s.reduced); document.documentElement.lang = lang() === 'zh' ? 'zh-CN' : 'en';
+  battle?.setReduced(s.reduced);
+}
+function show(name) {
+  app.screen = name;
+  for (const id of ['boot', 'home', 'map', 'battle']) $(`#screen-${id}`).hidden = id !== name;
+  if (name !== 'battle') { battle?.leave(); audio.music('menu'); }
+  cancelAnimationFrame(squadTimer); if (name === 'home') squadTimer = requestAnimationFrame(drawSquad);
+}
+function go(name, params = {}) {
+  closeSheet(true);
+  if (name === 'home') { renderHome(); show('home'); }
+  if (name === 'map') { renderMap(params.chapter ?? LEVELS[app.save.currentLevel].chapter); show('map'); }
+  if (name === 'battle') battle.enter(params);
+}
+const currencyPills = () => { const s = campaignSummary(app.save); return `<span class="pill">${img('icons/star.webp')}${s.stars}</span><span class="pill">${img('icons/coin.webp')}${app.save.coins}</span>`; };
+
+// ---------- 主页 ----------
+function renderHome() {
+  const s = app.save, summary = campaignSummary(s), allClear = summary.completed === LEVELS.length, daily = ensureDaily(s);
+  const next = allClear ? s.currentLevel : s.unlocked;
+  $('#screen-home').innerHTML = `
+    <div class="topbar"><div class="group">${currencyPills()}</div><button class="ibtn" id="home-settings" aria-label="${esc(t('home.settings'))}">${icon('gear')}</button></div>
+    ${img('ui/logo.webp', 'home-logo', 'Draw & Clash')}
+    ${lang() === 'zh' ? `<div class="home-sub">${esc(t('app.name'))}</div>` : ''}
+    <div class="home-stage"><canvas id="home-squad" aria-hidden="true"></canvas></div>
+    <div class="home-actions">
+      <button class="btn btn-gold play" id="home-play">${esc(summary.completed ? t('home.continue') : t('home.start'))}<small>${esc(allClear ? t('home.allClear') : t('home.levelTag', { n: next + 1, title: pick(LEVELS[next].title) }))}</small></button>
+      <div class="tiles">
+        <button class="tile" id="home-map">${img('icons/map.webp')}${esc(t('home.map'))}</button>
+        <button class="tile" id="home-daily">${img('icons/daily.webp')}${esc(t('home.daily'))}${daily && !daily.done ? '<i class="dot"></i>' : ''}</button>
+        <button class="tile" id="home-codex">${img('icons/codex.webp')}${esc(t('home.collection'))}</button>
+        <button class="tile" id="home-shop">${img('icons/palette.webp')}${esc(t('home.shop'))}</button>
+        <button class="tile" id="home-sandbox">${img('icons/sandbox.webp')}${esc(t('home.sandbox'))}</button>
+      </div>
+    </div>`;
+  $('#home-play').onclick = () => allClear ? go('map') : openLevel(next);
+  $('#home-map').onclick = () => go('map', { chapter: LEVELS[next].chapter });
+  $('#home-daily').onclick = openDaily;
+  $('#home-codex').onclick = () => openCodex();
+  $('#home-shop').onclick = openShop;
+  $('#home-sandbox').onclick = () => go('battle', { level: 0, sandbox: true });
+  $('#home-settings').onclick = openSettings;
+  app.persist();
+}
+// 主页上的小队：已解锁的兵种站成两排，轻轻起伏。
+function drawSquad(now) {
+  const canvas = $('#home-squad'); if (!canvas || app.screen !== 'home') return;
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  if (r.width && (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr))) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
+  const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height; c.clearRect(0, 0, w, h);
+  const types = UNIT_ORDER.filter(type => unitUnlocked(type, app.save.unlocked)), still = app.save.settings.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const order = [...types.keys()].sort((a, b) => (a % 2) - (b % 2));
+  for (const i of order) {
+    const type = types[i], n = types.length, x = w * (n === 1 ? .5 : .12 + .76 * i / (n - 1)), back = i % 2 === 0, size = h * (type === 'giant' ? .78 : .56) * (back ? .92 : 1);
+    const y = h * (back ? .8 : .96), bob = still ? 0 : Math.sin(now / 520 + i * 1.7) * h * .012;
+    c.fillStyle = 'rgba(25,40,55,.22)'; c.beginPath(); c.ellipse(x, y - h * .01, size * .28, size * .08, 0, 0, Math.PI * 2); c.fill();
+    c.save(); c.translate(x, y); c.scale(1, 1 + bob / size); drawUnitImage(c, type, app.save.skin, 0, 0, size); c.restore();
+  }
+  squadTimer = requestAnimationFrame(drawSquad);
+}
+
+// ---------- 关卡地图 ----------
+const NODE_POS = [[24, 87], [50, 81], [76, 74], [64, 63], [38, 57], [22, 47], [44, 39], [70, 33], [58, 23], [36, 14]];
+function renderMap(chapter) {
+  const s = app.save; app.chapter = Math.max(0, Math.min(CHAPTERS.length - 1, chapter));
+  const c = app.chapter, info = chapterSummary(s, c), first = c * LEVELS_PER_CHAPTER, open = info.unlocked;
+  const current = Object.keys(s.stars).length === LEVELS.length ? -1 : s.unlocked;
+  const path = NODE_POS.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+  $('#screen-map').innerHTML = `
+    <header class="map-top"><button class="ibtn dark" id="map-back" aria-label="${esc(t('common.back'))}">${icon('home')}</button>
+      <div class="title"><small>${esc(t('map.chapter', { n: c + 1 }))}</small><strong>${esc(pick(CHAPTERS[c].name))}</strong></div>${currencyPills()}</header>
+    <div class="map-stage ${open ? '' : 'locked'}" style="background-image:url(${assetUrl(`map/${CHAPTERS[c].id}.webp`)})">
+      <svg class="map-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="${path}" fill="none" stroke="#22304a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".85"/><path d="${path}" fill="none" stroke="#fff8e7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 12" vector-effect="non-scaling-stroke"/></svg>
+      ${NODE_POS.map(([x, y], i) => {
+        const level = first + i, stars = s.stars[level] || 0, locked = level > s.unlocked, boss = i === LEVELS_PER_CHAPTER - 1;
+        return `<button class="node ${stars ? 'cleared' : ''} ${level === current ? 'current' : ''} ${locked ? 'locked' : ''} ${boss ? 'boss' : ''}" style="left:${x}%;top:${y}%" data-level="${level}" aria-label="${esc(levelLabel(level))}${locked ? ` · ${esc(t('common.locked'))}` : ''}">${locked ? icon('lock') : level + 1}${stars ? starsMarkup(stars) : ''}</button>`;
+      }).join('')}
+      ${open ? '' : `<div class="map-lock">${icon('lock')}<span>${esc(t('map.lockedChapter', { n: first }))}</span></div>`}
+    </div>
+    <footer class="map-bottom"><button class="ibtn" id="map-prev" aria-label="${esc(t('map.prev'))}" ${c === 0 ? 'disabled' : ''}>${icon('back')}</button>
+      <div class="info"><p>${esc(pick(CHAPTERS[c].blurb))}</p><div class="map-progress">${esc(t('map.progress', { done: info.completed, total: info.total }))} · ★ ${info.stars}/${info.maxStars}</div>
+        <div class="dots">${CHAPTERS.map((_, i) => `<i class="${i === c ? 'on' : ''}"></i>`).join('')}</div></div>
+      <button class="ibtn" id="map-next" aria-label="${esc(t('map.next'))}" ${c === CHAPTERS.length - 1 ? 'disabled' : ''}>${icon('next')}</button></footer>`;
+  $('#map-back').onclick = () => go('home');
+  $('#map-prev').onclick = () => renderMap(c - 1);
+  $('#map-next').onclick = () => renderMap(c + 1);
+  for (const node of $$('.node')) node.onclick = () => openLevel(+node.dataset.level);
+  for (const id of CHAPTERS.map(ch => `map/${ch.id}.webp`)) loadImage(id).catch(() => {});
+}
+
+// ---------- 关卡详情 ----------
+function openLevel(i) {
+  const s = app.save, l = LEVELS[i], locked = i > s.unlocked, stars = s.stars[i] || 0, spot = SPOTLIGHTS[i];
+  const counts = UNIT_ORDER.map(type => [type, l.enemies.filter(u => u.type === type).length]).filter(([, n]) => n);
+  const rocks = l.rocks.filter(o => o.kind !== 'pond').length, ponds = l.rocks.length - rocks;
+  const nextUnits = UNIT_ORDER.filter(type => TYPES[type].unlock === i + 1), nextItems = ITEM_ORDER.filter(id => ITEMS[id].unlock === i + 1), fresh = !stars;
+  const sheet = openSheet({
+    kicker: esc(`${t('map.chapter', { n: l.chapter + 1 })} · ${pick(CHAPTERS[l.chapter].name)}`), title: `${esc(levelLabel(i))} ${stars ? starsMarkup(stars) : ''}`,
+    body: `<div class="chips"><span class="chip blue">${esc(pick(l.tag))}</span>${rocks ? `<span class="chip">${esc(t('level.rocks', { n: rocks }))}</span>` : ''}${ponds ? `<span class="chip">${esc(t('level.ponds', { n: ponds }))}</span>` : ''}${!l.rocks.length ? `<span class="chip">${esc(t('level.open'))}</span>` : ''}</div>
+      <div class="lv-facts"><div><b>${img('icons/ink.webp')}${l.budget}</b><small>${esc(t('level.ink'))}</small></div><div><b>${l.enemies.length}</b><small>${esc(t('level.enemies'))}</small></div><div><b>${esc(t('level.seconds', { n: l.par }))}</b><small>${esc(t('level.par'))}</small></div></div>
+      <div class="lineup">${counts.map(([type, n]) => `<div class="who"><canvas width="92" height="92" data-unit="${type}"></canvas><b>×${n}</b><small>${esc(unitName(type))}</small></div>`).join('')}</div>
+      <div class="box soft hintbox"><b>${esc(t('level.hint'))}</b><p>${esc(pick(l.hint))}</p></div>
+      ${itemUnlocked(l.recommendedItem, i) ? `<div class="rec-item">${img(`icons/item-${l.recommendedItem}.webp`)}<span>${esc(t('level.recommended'))} · ${esc(itemName(l.recommendedItem))}<br><small class="muted">${esc(t(`item.${l.recommendedItem}.short`))}</small></span></div>` : ''}
+      ${spot ? `<div class="box challenge ${s.medals[i] ? 'done' : ''}">${img('icons/trophy.webp')}<div><b>${esc(s.medals[i] ? t('level.challengeDone') : t('level.challenge'))} · ${esc(t(`spot.${spot.id}.goal`))}${s.medals[i] ? '' : ` <span class="chip gold">${esc(t('level.challengeReward', { n: REWARDS.medal }))}</span>`}</b><p class="muted">${esc(t(`spot.${spot.id}.desc`))}</p></div></div>` : ''}
+      ${fresh ? [...nextUnits.map(type => t('level.unlockUnit', { name: unitName(type) })), ...nextItems.map(id => t('level.unlockItem', { name: itemName(id) }))].map(text => `<p class="muted" style="margin-top:8px">✦ ${esc(text)}</p>`).join('') : ''}
+      <p class="muted" style="margin-top:10px">${esc(t('level.starRule', { n: l.par }))}</p>
+      <div class="actions"><button class="btn btn-gold big block" id="level-go" ${locked ? 'disabled' : ''}>${locked ? `${icon('lock')} ${esc(t('level.lockedBtn', { n: i }))}` : `${icon('swords')} ${esc(t('level.fight'))}`}</button></div>`
+  });
+  for (const c of $$('canvas[data-unit]', sheet)) paintUnit(c, c.dataset.unit, 'red', { flip: true });
+  $('#level-go', sheet).onclick = () => { if (!locked) { closeSheet(true); go('battle', { level: i }); } };
+}
+
+// ---------- 图鉴 ----------
+function openCodex(tab = 'units', chosen = null) {
+  const s = app.save, unlocked = s.unlocked;
+  const stat = (label, value, max) => `<div><span>${esc(label)}</span><i><em style="width:${Math.min(100, value / max * 100)}%"></em></i><span>${value}</span></div>`;
+  let body = `<div class="tabs"><button data-tab="units" class="${tab === 'units' ? 'on' : ''}">${esc(t('codex.units'))}</button><button data-tab="items" class="${tab === 'items' ? 'on' : ''}">${esc(t('codex.items'))}</button></div>`;
+  if (tab === 'units') {
+    const type = chosen || UNIT_ORDER.filter(u => unitUnlocked(u, unlocked)).at(-1), d = TYPES[type], open = unitUnlocked(type, unlocked);
+    body += `<div class="codex-grid">${UNIT_ORDER.map(u => `<button class="codex-cell ${u === type ? 'on' : ''} ${unitUnlocked(u, unlocked) ? '' : 'locked'}" data-unit="${u}"><canvas width="116" height="116"></canvas>${esc(unitUnlocked(u, unlocked) ? unitName(u) : '???')}</button>`).join('')}</div>
+      <div class="profile box"><div class="head"><canvas id="codex-art" width="192" height="192"></canvas><div><h3>${esc(open ? unitName(type) : '???')}</h3><p class="muted">${esc(open ? t(`unit.${type}.role`) : t('codex.unlockAt', { n: d.unlock }))}</p>
+        <div class="chips"><span class="chip gold">${img('icons/ink.webp')}${d.cost}</span><span class="chip">${esc(t('codex.limit'))} ${d.limit}</span></div></div></div>
+        ${open ? `<div class="bars">${stat(t('codex.hp'), d.hp, 360)}${d.heals ? stat(t('codex.heal'), d.heal, 35) : stat(t('codex.damage'), d.damage, 35)}${stat(t('codex.range'), d.range, 145)}${stat(t('codex.speed'), d.speed, 64)}</div>
+        <div><b>${esc(t('codex.good'))}</b><p>${esc(t(`unit.${type}.good`))}</p></div><div><b>${esc(t('codex.watch'))}</b><p>${esc(t(`unit.${type}.watch`))}</p></div>` : ''}</div>`;
+  } else {
+    body += `<div class="options">${ITEM_ORDER.map(id => { const open = itemUnlocked(id, unlocked); return `<div class="option ${open ? '' : 'locked'}">${img(`icons/item-${id}.webp`)}<span><b>${esc(itemName(id))}</b><small>${esc(open ? t(`item.${id}.desc`) : t('item.unlockAt', { n: ITEMS[id].unlock }))}</small></span></div>`; }).join('')}</div>`;
+  }
+  const sheet = openSheet({ title: esc(t('codex.title')), className: 'full', body });
+  for (const b of $$('[data-tab]', sheet)) b.onclick = () => openCodex(b.dataset.tab);
+  for (const cell of $$('.codex-cell', sheet)) { paintUnit(cell.querySelector('canvas'), cell.dataset.unit, s.skin, { locked: cell.classList.contains('locked') }); cell.onclick = () => openCodex('units', cell.dataset.unit); }
+  if ($('#codex-art', sheet)) { const type = chosen || UNIT_ORDER.filter(u => unitUnlocked(u, unlocked)).at(-1); paintUnit($('#codex-art', sheet), type, s.skin, { locked: !unitUnlocked(type, unlocked) }); }
+}
+
+// ---------- 军旗配色 ----------
+function openShop() {
+  const s = app.save;
+  const sheet = openSheet({
+    title: esc(t('shop.title')), className: 'full',
+    body: `<p class="muted">${esc(t('shop.blurb'))}</p><p style="margin-top:8px"><span class="pill">${img('icons/coin.webp')}${s.coins}</span></p>
+      <div class="skins">${SKINS.map(k => {
+        const owned = s.skins.includes(k.id), on = s.skin === k.id, poor = s.coins < k.price;
+        return `<div class="skin ${on ? 'on' : ''}"><canvas width="168" height="168" data-skin="${k.id}"></canvas><b><i style="background:${PALETTES[k.id].swatch}"></i>${esc(t(`skin.${k.id}`))}</b>
+          <button class="btn small ${on ? 'btn-paper' : owned ? 'btn-blue' : 'btn-gold'}" data-skin="${k.id}" ${on || (!owned && poor) ? 'disabled' : ''}>${on ? esc(t('shop.equipped')) : owned ? esc(t('shop.equip')) : `<span class="price">${img('icons/coin.webp')}${k.price}</span>`}</button></div>`;
+      }).join('')}</div>`
+  });
+  for (const c of $$('canvas[data-skin]', sheet)) paintUnit(c, 'knight', c.dataset.skin);
+  for (const b of $$('button[data-skin]', sheet)) b.onclick = () => {
+    const id = b.dataset.skin, owned = s.skins.includes(id);
+    if (owned ? equipSkin(s, id) : buySkin(s, id)) { if (!owned) { audio.sfx('coin'); buzz(20, true); } app.persist(); battle.setSkin(s.skin); announce(claimAchievements(s)); openShop(); if (app.screen === 'home') renderHome(); }
   };
-  (kinds[kind]||(()=>tone('sine',450,300,.1,.025)))();
- }catch{}
 }
-// 震动只在支持的浏览器生效（多数安卓可以，iPhone 浏览器不支持）；可在帮助菜单关闭。
-const canBuzz=typeof navigator.vibrate==='function';
-function buzz(pattern,force=false){if(!save.haptics||!canBuzz)return;const now=performance.now();if(!force&&now-lastBuzz<70)return;lastBuzz=now;try{navigator.vibrate(pattern);}catch{}}
-// 把模拟里的表现事件变成震屏、震动和音效；只影响表现，不改变战斗。
-function feel(events){
- if(events.includes('boom')){renderer.kick(6);buzz(22);sound('boom');}
- else if(events.includes('slam')){renderer.kick(2.5);buzz(12);sound('slam');}
- if(events.includes('shoot'))sound('shoot');
- if(events.includes('toss'))sound('toss');
- if(events.includes('block'))sound('block');else if(events.includes('hit'))sound('hit');
+
+// ---------- 每日悬赏 ----------
+function openDaily() {
+  const s = app.save, daily = ensureDaily(s); app.persist();
+  const body = !daily ? `<div class="daily-card">${img('icons/daily.webp')}<p>${esc(t('daily.locked'))}</p></div>`
+    : `<div class="daily-card">${img('icons/daily.webp')}<div><p><b>${esc(daily.done ? t('daily.done') : t('daily.goal', { n: daily.level + 1, title: pick(LEVELS[daily.level].title) }))}</b></p><p class="muted">${esc(t('daily.reward', { n: REWARDS.daily }))} · ${esc(t('daily.reset'))}</p>${daily.streak ? `<p class="muted">${esc(t('daily.streak', { n: daily.streak }))}</p>` : ''}</div></div>
+      ${daily.done ? '' : `<div class="actions"><button class="btn btn-gold big block" id="daily-go">${icon('swords')} ${esc(t('daily.go'))}</button></div>`}`;
+  const sheet = openSheet({ title: esc(t('daily.title')), body });
+  if ($('#daily-go', sheet)) $('#daily-go', sheet).onclick = () => { closeSheet(true); go('battle', { level: daily.level }); };
 }
-function toast(s){$('toast').textContent=s;$('toast').classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.remove('visible'),1700)}
-function reset(level=g.level,sandbox=g.sandbox,plan=null){input?.cancel();renderer.selectedPid=null;g=new Battle(level,sandbox);g.selectedItem=save.item;g.plan=structuredClone(plan??(!sandbox?save.formations[level]||[]:[]));g.serial=Math.max(0,...g.plan.map(u=>(u.pid??-1)+1));window.__game=g;shown=false;beat=null;$('overlay').hidden=true;quotaTeam=0;metrics.record('level_enter',{level:level+1,sandbox});if(!sandbox){save.currentLevel=level;persist();}update();}
-function checkpoint(){if(g.phase!=='build'||g.sandbox)return;const draft=draftOf(g);if(JSON.stringify(draft)!==JSON.stringify((save.formations[g.level]||[]).map(({type,x,y})=>({type,x,y,team:0})))){save.formations[g.level]=draft;persist();}}
-function updateGuide(){
- const step=!g.sandbox&&!save.guides[g.level]?guideStep(g,flags()):null;
- $('coach').hidden=!step;$('app').classList.toggle('coached',!!step);renderer.guideGhosts=step?.ghosts||[];
- for(const id of ['roster','arena','start','heal'])$(id).classList.toggle('coach-focus',step?.target===id);
- if(step){$('coach-title').textContent=step.title;$('coach-text').textContent=step.text;const key=`${g.level}:${step.id}`;if(lastGuideKey!==key){metrics.record('guide_step',{level:g.level+1,step:step.id});lastGuideKey=key;}}
- return step;
+
+// ---------- 成就 ----------
+function announce(earned) {
+  if (!earned.length) return;
+  // 一次达成很多个（比如读入旧存档）时合并成一条，免得提示一条接一条挡住画面。
+  const text = earned.length > 2 ? t('ach.toastMany', { count: earned.length, n: earned.reduce((s, a) => s + a.reward, 0) }) : earned.map(a => t('ach.toast', { name: t(`ach.${a.id}.name`), n: a.reward })).join('\n');
+  toast(text, 3000); audio.sfx('unlock'); app.persist();
 }
-function update(){checkpoint();document.querySelector('.footnote').textContent=progressSaved?`试玩版 ${PLAYTEST_VERSION} · 10关挑战 · 本机保存`:'本机存储不可用 · 刷新可能丢失进度';const lesson=updateGuide();$('sound').style.color=save.sound?'#477cdb':'';$('sound').setAttribute('aria-label',save.sound?'关闭音效':'开启音效');const build=g.phase==='build';const progress=campaignSummary(save);const inspection=build&&!renderer.drag?renderer.inspect(g):null;$('inspection-info').hidden=!inspection;if(inspection){$('inspection-title').textContent=`${TYPES[inspection.unit.type].name} · 基础射程 ${inspection.range}`;$('inspection-status').textContent=inspection.status+' · 开战后目标会移动';}const feedback=g.feedback&&g.feedback.until>g.elapsed&&g.phase==='battle'?g.feedback:null;$('combat-alert').hidden=!feedback;if(feedback){$('combat-alert').textContent=(feedback.kind==='rear'?'! ':'')+feedback.message;$('combat-alert').className=feedback.kind;}$('campaign-map').hidden=g.sandbox;$('stage-tip').hidden=g.sandbox||!build||!!lesson;$('stage-tip').textContent=`布阵提示 · ${LEVELS[g.level].hint}`;$('campaign-progress').textContent=`${progress.completed} / 10 已通关`;$('campaign-stars').textContent=`★ ${progress.stars} / 30　→`;$('campaign').textContent='闯关挑战 · 10关';$('campaign').classList.toggle('active',!g.sandbox);$('sandbox').classList.toggle('active',g.sandbox);$('chapter').textContent=g.sandbox?'YOUR RULES / YOUR BATTLE':`第 ${g.level+1} / 10 关 · ${LEVELS[g.level].group.split(' · ')[1]}`;$('leveltitle').innerHTML=g.sandbox?'自由沙盒 <span>⌄</span>':`${LEVELS[g.level].title} <span>⌄</span>`;$('budgetlabel').textContent=g.sandbox?'蓝 / 红 部队':'可用墨水';$('budget').textContent=g.sandbox?g.plan.filter(u=>!u.team).length:g.remaining;$('maxbudget').textContent=g.sandbox?`/ ${g.plan.filter(u=>u.team).length}`:`/${g.budget}`;const list=build?[...g.plan,...(g.sandbox?[]:g.enemy)]:g.units.filter(u=>u.hp>0);$('bluecount').textContent=list.filter(u=>!u.team).length+(build?`/${TEAM_LIMIT}`:'');$('redcount').textContent=list.filter(u=>u.team).length+(build?`/${TEAM_LIMIT}`:'');$('timer').textContent=build?'布阵阶段':g.phase==='paused'?'已暂停':`${g.elapsed.toFixed(1)} s`;$('speed').hidden=!['battle','paused'].includes(g.phase);$('speed').textContent=`${speed}×`;$('speed').setAttribute('aria-pressed',String(speed===2));$('hint').hidden=!build||!!inspection;$('hint').textContent=g.sandbox?'上方红队，下方蓝队 · 每队10人 · 均有兵种限额':'拖入兵种 · 拖动士兵调位置 · 拖回下方回收';$('autofill').hidden=!build||g.plan.length>0;$('autofill').textContent='✧ 放一组基础阵型';$('start').disabled=build&&(!g.plan.some(u=>u.team===0)||(g.sandbox&&!g.plan.some(u=>u.team===1)));$('start').innerHTML=build?'开始战斗 <span>↗</span>':g.phase==='paused'?'继续战斗 <span>▷</span>':g.phase==='battle'?'暂停战斗 <span>Ⅱ</span>':beat&&!shown?'查看战报 <span>→</span>':'再试一次 ↻';$('clear').textContent=build?'清空':'重新布阵';$('undo').disabled=!build||!g.history.length;$('erase').disabled=!build;const item=ITEMS[g.selectedItem],active=g.effects[g.selectedItem]||0;
-$('heal').hidden=false;$('heal').disabled=!build&&!g.canUseItem;
-$('heal').innerHTML=build?`<b>${item.icon} ${item.name}</b><small>战前选择 · 每场一次</small>`:g.itemUsed?active>0?`<span class="item-timer" style="--remaining:${active/item.duration*100}%">${item.icon}</span><span>${active.toFixed(1)}秒</span>`:`${item.icon} 已使用`:`${item.icon} ${item.name} ×1`;
-$('heal').title=build?'选择本场战术道具':item.description;$('heal').setAttribute('aria-label',build?'选择战术道具':`使用${item.name}，${item.description}`);
-$('erase').classList.toggle('on',eraser);$('erase').setAttribute('aria-pressed',String(eraser));$('selectedinfo').textContent=eraser?'橡皮 · 滑动移除部队':`${g.sandbox?(quotaTeam?'红方 · ':'蓝方 · '):''}${TYPES[selected].name} · ${TYPES[selected].role}`;for(const b of $('roster').children){b.classList.toggle('selected',b.dataset.type===selected&&!eraser);const count=g.count(b.dataset.type,quotaTeam),limit=TYPES[b.dataset.type].limit;b.classList.toggle('full',count>=limit||g.count(null,quotaTeam)>=TEAM_LIMIT);b.querySelector('.quota').textContent=`${count}/${limit}`;const locked=!g.sandbox&&b.dataset.type==='giant'&&save.unlocked<3;b.disabled=!build||locked;b.querySelector('small').textContent=locked?'第4关解锁':g.sandbox?'自由放置':`${TYPES[b.dataset.type].cost} 墨水`;b.setAttribute('aria-label',`${TYPES[b.dataset.type].name}，${locked?'第4关解锁':g.sandbox?'自由放置':TYPES[b.dataset.type].cost+'墨水'}，${TYPES[b.dataset.type].role}，已放${count}名，上限${limit}名`);}}
-for(const [type,d]of Object.entries(TYPES)){const b=document.createElement('button');b.className='unit';b.dataset.type=type;b.setAttribute('aria-label',`${d.name}，${d.cost}墨水，${d.role}`);b.innerHTML=`<span class="quota">0/${d.limit}</span><canvas width="100" height="100"></canvas><strong>${d.name}</strong><small>${d.cost} 墨水</small>`;const c=b.querySelector('canvas').getContext('2d');drawUnit(c,{type,x:50,y:87,team:0,angle:.3},0,1.65,true);b.onclick=()=>{selected=type;eraser=false;update();};$('roster').append(b);}
-input=new FormationInput({canvas:$('arena'),renderer,getGame:()=>g,getSelection:()=>({type:selected,eraser}),
- select:type=>{selected=type;eraser=false;update();},message:toast,
- onChange:(event,team,detail={})=>{if(event==='move')flags().moved=true;if(event==='inspect')flags().inspected=true;if(event==='move'||event==='inspect'){save.lessonActions[g.level]={...flags()};persist();}if(event)metrics.record(({place:'formation_place',move:'formation_move',remove:'formation_remove',rejected:'placement_rejected'})[event]||'guide_step',{level:g.level+1,sandbox:g.sandbox,type:detail.type,reason:detail.reason,step:event});if(team!==undefined)quotaTeam=team;if(event==='place'){sound('place');buzz(8);}update();}});
-$('skip-coach').onclick=()=>{save.guides[g.level]=true;metrics.record('guide_skip',{level:g.level+1});persist();update();};
-$('selectedinfo').onclick=()=>openCodex(selected);
-$('clear-inspection').onclick=()=>{renderer.selectedPid=null;update();};
-$('undo').onclick=()=>{g.undo();update()};$('erase').onclick=()=>{eraser=!eraser;update()};$('clear').onclick=()=>{if(g.phase==='build'){g.clear();update();}else reset();};$('start').onclick=()=>{input?.cancel();if(g.phase==='build'){const step=guideStep(g,flags());if(g.start()){frameSamples=new FrameSamples();metrics.record('battle_start',{level:g.level+1,sandbox:g.sandbox,units:g.plan.filter(u=>!u.team).length,spent:g.spent,item:g.selectedItem,speed});if(!g.sandbox&&!save.guides[g.level]&&step?.id==='start'){save.guides[g.level]=true;metrics.record('guide_complete',{level:g.level+1});persist();}}}else if(g.phase==='battle')g.phase='paused';else if(g.phase==='paused')g.phase='battle';else if(beat&&!shown)showResult();else reset(g.level,g.sandbox,g.plan);update();};
-$('speed').onclick=()=>{speed=speed===2?1:2;save.speed=speed;persist();update();};
-// 胜负揭晓的停顿中轻点战场，直接看战报。
-$('arena').addEventListener('pointerdown',()=>{if(beat&&!shown)showResult();});$('heal').onclick=()=>{
- if(g.phase==='build'){openItems();return;}
- if(g.useItem())metrics.record('item_used',{level:g.level+1,sandbox:g.sandbox,item:g.selectedItem,seconds:g.elapsed});
- update();
-};
-function openItems(){
- if(g.phase!=='build')return;
- input?.cancel();sheet(`<div class="eyebrow">战前装备 · 每场使用一次</div><h2 id="sheettitle">带上哪件战术道具？</h2><p>只带一件，不花墨水。开战后选择使用时机，重试会补满。</p><div class="item-options">${Object.entries(ITEMS).map(([id,item])=>`<button data-item="${id}" class="item-option ${g.selectedItem===id?'equipped':''}" aria-pressed="${g.selectedItem===id}"><span class="item-art">${item.icon}</span><span><b>${item.name}${g.selectedItem===id?' · 已装备':''}</b><small>${item.description}</small></span></button>`).join('')}</div><p>本关建议：${ITEMS[LEVELS[g.level].recommendedItem].name}。你也可以根据自己的阵容选择。</p>`);
- for(const b of document.querySelectorAll('[data-item]'))b.onclick=()=>{if(g.selectItem(b.dataset.item)){flags().itemChosen=true;save.lessonActions[g.level]={...flags()};save.item=b.dataset.item;persist();$('overlay').hidden=true;update();}};
+function openAchievements() {
+  const s = app.save;
+  openSheet({
+    title: esc(t('ach.title')), className: 'full',
+    body: `<div class="ach-list">${ACHIEVEMENTS.map(a => {
+      const done = !!s.achievements[a.id], value = Math.min(a.goal, a.progress(s));
+      return `<div class="ach ${done ? 'done' : ''}">${img('icons/trophy.webp')}<div><b>${esc(t(`ach.${a.id}.name`))}</b><small>${esc(t(`ach.${a.id}.desc`))}</small>${done ? '' : `<div class="meter"><i style="width:${value / a.goal * 100}%"></i></div>`}</div>
+        <span class="price">${done ? icon('check') : `${img('icons/coin.webp')}${a.reward}`}</span></div>`;
+    }).join('')}</div>`
+  });
 }
-$('autofill').onclick=()=>{
-  g.beginStroke();
-  const formation=[['guard',130,365],['guard',260,365],['knight',390,365],['archer',110,470],['archer',250,470]];
-  for(const [type,x,y]of formation)g.place(type,x,y);
-  if(g.sandbox)for(const u of LEVELS[2].enemies)g.place(u.type,u.x,u.y,1);
-  update();
-};
-$('campaign').onclick=()=>openCampaign(g.sandbox?save.currentLevel:g.level);$('sandbox').onclick=()=>reset(0,true);$('sound').onclick=()=>{save.sound=!save.sound;persist();$('sound').style.color=save.sound?'#477cdb':'';$('sound').setAttribute('aria-label',save.sound?'关闭音效':'开启音效');toast(save.sound?'音效已开启':'音效已关闭');sound('place');};
-let lastFocus;function sheet(html){lastFocus=document.activeElement;$('sheetcontent').innerHTML=html;$('overlay').hidden=false;$('close').focus();}function close(){if(['won','lost'].includes(g.phase))reset(g.level,g.sandbox,g.plan);else $('overlay').hidden=true;lastFocus?.focus();}$('close').onclick=close;$('overlay').onclick=e=>{if(e.target===$('overlay'))close();};
-function openRules(){if(g.phase==='battle')g.phase='paused';update();sheet(`<div class="eyebrow">A LITTLE FIELD GUIDE</div><h2 id="sheettitle">三步，画出一场胜利。</h2><div class="help-row"><b>01 选一个兵种</b><br>先锋冲锋，护卫挡箭。弓手与爆破手适合放在后排。第4关解锁巨人。巨石阻挡行走和箭矢，爆破手可越石投弹。</div><div class="help-row"><b>02 画出你的部队</b><br>把兵种卡拖入蓝色区域，或点击、滑动画兵。点选已放士兵查看射程与预计接敌路线；绿色虚线是静态路线，红色线表示巨石挡箭。预览不是胜负预测。已放士兵可直接拖动；拖回兵种栏或战场下方回收区可退还墨水。无效落点会退回原位。每队最多10人；先锋5、护卫3、弓手4、爆破手2、巨人1。沙盒不限墨水，红蓝两队分别计算数量。</div><div class="help-row"><b>03 开战，观察，调整</b><br>护卫在前，弓手在后；箭会被路径上的敌人挡住，爆炸会伤到聚集的单位。开战后不可拖动。战前点底部道具选择急救旗、集结号或烟雾弹，每场只能使用所带的一件一次。急救治疗伤员；集结加速5秒；烟雾降低箭矢伤害4秒，但不防炸弹。80秒未获胜判失败。</div><p>星级：获胜★；至少半数队员存活再得★；25秒内获胜再得★。关卡进度自动保存在当前浏览器。<br>战斗中点上方的 1× 切换2倍速；计时按战斗内时间，不影响结果和星级。<br>电脑快捷键：空格 开战/暂停；F 倍速；Z 撤销；Esc 关闭。</p>`);}
-function openCampaign(preview=g.sandbox?save.currentLevel:g.level){
-  input?.cancel();if(g.phase==='battle')g.phase='paused';update();
-  save.campaignSeen=true;persist();
-  sheet(campaignMarkup(save,g.sandbox?save.currentLevel:g.level,preview));
-  for(const b of document.querySelectorAll('[data-preview]'))b.onclick=()=>openCampaign(+b.dataset.preview);
-  $('challenge-stage').onclick=()=>{
-    if(preview>save.unlocked)return;
-    if(!g.sandbox&&preview===g.level){if(g.phase==='build')$('overlay').hidden=true;else reset(preview,false,g.plan);}
-    else reset(preview,false);
+
+// ---------- 设置 ----------
+function openSettings() {
+  const s = app.save.settings;
+  const toggle = (id, on, disabled = false) => `<button class="switch" role="switch" id="${id}" aria-checked="${on}" ${disabled ? 'disabled' : ''}></button>`;
+  const sheet = openSheet({
+    title: esc(t('settings.title')), className: 'full',
+    body: `<div class="rows">
+      <div class="rowline"><span>${esc(t('settings.language'))}</span><div class="seg">${LANGUAGES.map(l => `<button data-lang="${l.id}" class="${lang() === l.id ? 'on' : ''}">${l.label}</button>`).join('')}</div></div>
+      <div class="rowline"><span>${esc(t('settings.music'))}</span>${toggle('set-music', s.music)}</div>
+      <div class="rowline"><span>${esc(t('settings.sfx'))}</span>${toggle('set-sfx', s.sfx)}</div>
+      <div class="rowline"><span>${esc(t('settings.haptics'))}${canVibrate ? '' : `<small>${esc(t('settings.hapticsNA'))}</small>`}</span>${toggle('set-haptics', s.haptics && canVibrate, !canVibrate)}</div>
+      <div class="rowline"><span>${esc(t('settings.reduced'))}<small>${esc(t('settings.reducedNote'))}</small></span>${toggle('set-reduced', s.reduced)}</div>
+      <button class="rowline" id="set-ach"><span>${esc(t('ach.title'))}</span>${icon('next')}</button>
+      <button class="rowline" id="set-feedback"><span>${esc(t('settings.feedback'))}</span>${icon('next')}</button>
+    </div>
+    <p class="muted" style="margin-top:14px">${esc(t('settings.privacy'))}</p>
+    <p class="muted">${esc(t('settings.version', { v: PLAYTEST_VERSION }))}</p>
+    <div class="actions"><button class="btn btn-red block" id="set-reset">${esc(t('settings.reset'))}</button></div>`
+  });
+  const flip = (id, key, after) => { $(`#${id}`, sheet).onclick = e => { s[key] = !s[key]; e.currentTarget.setAttribute('aria-checked', String(s[key])); applySettings(); app.persist(); after?.(); }; };
+  flip('set-music', 'music', () => audio.unlock()); flip('set-sfx', 'sfx', () => audio.sfx('tap')); flip('set-haptics', 'haptics', () => buzz(20, true)); flip('set-reduced', 'reduced');
+  for (const b of $$('[data-lang]', sheet)) b.onclick = () => { s.lang = setLang(b.dataset.lang); app.persist(); applySettings(); relabelAll(); openSettings(); toast(t('toast.lang')); };
+  $('#set-ach', sheet).onclick = openAchievements;
+  $('#set-feedback', sheet).onclick = openFeedback;
+  $('#set-reset', sheet).onclick = () => {
+    const confirm = openSheet({ title: esc(t('settings.reset')), body: `<p>${esc(t('settings.resetConfirm'))}</p><div class="actions two"><button class="btn btn-paper" id="reset-no">${esc(t('common.cancel'))}</button><button class="btn btn-red" id="reset-yes">${esc(t('common.confirm'))}</button></div>` });
+    $('#reset-no', confirm).onclick = openSettings;
+    $('#reset-yes', confirm).onclick = () => {
+      const keep = app.save.settings; try { storage.removeItem(SAVE_KEY); storage.removeItem(LEGACY_KEY); } catch { /* 存储不可用时无事可做 */ }
+      app.save = normalizeSave({ settings: keep }); app.persist(); battle.setSkin('blue'); closeSheet(true); go('home'); toast(t('settings.resetDone'));
+    };
   };
 }
-$('levels').onclick=()=>openCampaign();$('campaign-map').onclick=()=>openCampaign();
-$('help').onclick=()=>{
- if(g.phase==='battle')g.phase='paused';input?.cancel();update();
- sheet(`<div class="eyebrow">随时可以回来查看</div><h2 id="sheettitle">战地手册</h2><div class="help-menu"><button id="rules-open">玩法与操作 <span>→</span></button><button id="codex-open">五种兵种，怎么搭配 <span>→</span></button><button id="guide-replay">重新显示本关引导 <span>→</span></button><button id="haptics-toggle" aria-pressed="${save.haptics&&canBuzz}" ${canBuzz?'':'disabled'}>震动反馈 <span>${canBuzz?(save.haptics?'开':'关'):'此浏览器不支持'}</span></button><button id="feedback-open">试玩反馈与本机记录 <span>→</span></button></div><p>单机试玩版 ${PLAYTEST_VERSION} · 没有广告和付费。进度、阵容和试玩记录均保存在当前浏览器。</p>`);
- $('rules-open').onclick=openRules;$('codex-open').onclick=()=>openCodex(selected);
- $('guide-replay').onclick=()=>{save.guides[g.level]=false;lessonFlags.delete(g.level);delete save.lessonActions[g.level];lastGuideKey='';persist();if(g.phase!=='build')reset(g.level,g.sandbox,g.plan);else $('overlay').hidden=true;update();};
- $('feedback-open').onclick=openFeedback;
- $('haptics-toggle').onclick=()=>{save.haptics=!save.haptics;persist();buzz(20,true);$('haptics-toggle').setAttribute('aria-pressed',String(save.haptics));$('haptics-toggle').querySelector('span').textContent=save.haptics?'开':'关';};
-};
-function openCodex(type='knight'){
- if(g.phase==='battle')g.phase='paused';input?.cancel();update();const d=TYPES[type],brief=UNIT_GUIDE[type];
- sheet(`<div class="eyebrow">兵种手册 · 共5种</div><h2 id="sheettitle">每个人都有位置。</h2><div class="codex-tabs">${Object.entries(TYPES).map(([id,u])=>`<button data-codex="${id}" class="${id===type?'chosen':''}">${u.name}</button>`).join('')}</div><div class="unit-profile"><canvas id="unit-portrait" width="240" height="200"></canvas><div><h3>${d.name}</h3><p>${d.role}</p><small>${d.cost}墨水 · 每队最多${d.limit}名</small></div></div><div class="profile-numbers"><span>生命 <b>${d.hp}</b></span><span>伤害 <b>${d.damage}</b></span><span>基础射程 <b>${d.range}</b></span></div><div class="profile-note"><b>适合这样用</b><p>${brief.good}</p><b>要留意</b><p>${brief.watch}</p></div><button class="primary" id="codex-return">回到布阵</button>`);
- const c=$('unit-portrait').getContext('2d');drawUnit(c,{type,x:120,y:175,team:0,angle:.35},0,3,true);
- for(const b of document.querySelectorAll('[data-codex]'))b.onclick=()=>openCodex(b.dataset.codex);
- $('codex-return').onclick=()=>{if(g.phase==='build')$('overlay').hidden=true;else reset(g.level,g.sandbox,g.plan);};
+function relabelAll() { if (app.screen === 'home') renderHome(); if (app.screen === 'map') renderMap(app.chapter); battle.relabel(); }
+
+function openFeedback() {
+  const m = app.metrics, summary = m.summary();
+  const sheet = openSheet({
+    title: esc(t('feedback.title')), className: 'full',
+    body: `<p class="muted">${esc(t('feedback.note'))}</p>
+      <form class="form" id="feedback-form"><label>${esc(t('feedback.rating'))}<select id="feedback-rating" required><option value="">${esc(t('feedback.choose'))}</option>${[1, 2, 3, 4, 5].map(n => `<option value="${n}">${n} / 5</option>`).join('')}</select></label>
+        <label>${esc(t('feedback.difficulty'))}<select id="feedback-difficulty"><option value="fair">${esc(t('feedback.fair'))}</option><option value="easy">${esc(t('feedback.easy'))}</option><option value="hard">${esc(t('feedback.hard'))}</option></select></label>
+        <label>${esc(t('feedback.comment'))}<textarea id="feedback-comment" maxlength="1000" rows="3" placeholder="${esc(t('feedback.placeholder'))}"></textarea></label>
+        <button class="btn btn-gold block" type="submit">${esc(t('feedback.save'))}</button><p class="muted" id="feedback-status" role="status"></p></form>
+      <div class="form"><label class="check"><input id="record-enabled" type="checkbox" ${m.enabled ? 'checked' : ''}>${esc(t('feedback.record'))}</label><p class="muted" id="local-summary">${esc(t('feedback.summary', summary))}</p>
+        <button class="btn btn-paper block" id="export-records">${esc(t('feedback.export'))}</button><button class="text-link" id="clear-records">${esc(t('feedback.clear'))}</button></div>`
+  });
+  const refresh = () => { $('#local-summary', sheet).textContent = t('feedback.summary', m.summary()); };
+  $('#record-enabled', sheet).onchange = e => m.setEnabled(e.target.checked);
+  $('#feedback-form', sheet).onsubmit = e => {
+    e.preventDefault(); const g = battle.game;
+    if (!m.enabled) { $('#feedback-status', sheet).textContent = t('feedback.off'); return; }
+    m.record('feedback', { level: g.level + 1, sandbox: g.sandbox, rating: Number($('#feedback-rating', sheet).value), difficulty: $('#feedback-difficulty', sheet).value, comment: $('#feedback-comment', sheet).value });
+    refresh(); $('#feedback-status', sheet).textContent = m.storageError ? t('feedback.unsaved') : t('feedback.saved');
+  };
+  $('#export-records', sheet).onclick = () => { const blob = new Blob([JSON.stringify(m.export(), null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `draw-clash-playtest-${Date.now()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  $('#clear-records', sheet).onclick = () => { m.clear(); refresh(); $('#feedback-status', sheet).textContent = t('feedback.cleared'); };
 }
-function openFeedback(){
- if(g.phase==='battle')g.phase='paused';input?.cancel();update();const summary=metrics.summary();
- sheet(`<div class="eyebrow">本地试玩 · ${PLAYTEST_VERSION}</div><h2 id="sheettitle">告诉我们哪里卡住了。</h2><p>只保存在本机，不会自动上传。你可以导出后自行分享。</p><form id="feedback-form"><label>这次好玩吗？<select id="feedback-rating" required><option value="">请选择</option>${[1,2,3,4,5].map(n=>`<option value="${n}">${n} / 5</option>`).join('')}</select></label><label>难度感受<select id="feedback-difficulty"><option value="fair">刚好</option><option value="easy">偏简单</option><option value="hard">偏难</option></select></label><label>哪里不明白、卡住或想再玩？<textarea id="feedback-comment" maxlength="1000" rows="3" placeholder="例如：不知道为什么箭射不出去"></textarea></label><button class="primary" type="submit">保存反馈到本机</button><p id="feedback-status" role="status"></p></form><div class="local-records"><label><input id="record-enabled" type="checkbox" ${metrics.enabled?'checked':''}>在此设备记录试玩过程</label><p id="local-summary">当前保留 ${summary.battles} 场结果、${summary.feedback} 条反馈；最多500条事件。只记录关卡、布阵操作与战斗结果，不记录鼠标轨迹。</p><button id="export-records" class="secondary">导出试玩记录 JSON</button><button id="clear-records" class="text-action">删除本机试玩记录</button><small>仅当前浏览器样本，不能据此判断整体留存率。</small></div>`);
- const refreshSummary=()=>{const s=metrics.summary();$('local-summary').textContent=`当前保留 ${s.battles} 场结果、${s.feedback} 条反馈；最多500条事件。只记录关卡、布阵操作与战斗结果，不记录鼠标轨迹。`;};
- $('record-enabled').onchange=e=>metrics.setEnabled(e.target.checked);
- $('feedback-form').onsubmit=e=>{e.preventDefault();if(!metrics.enabled){$('feedback-status').textContent='本机记录已关闭。勾选后可以保存反馈，或直接把想法告诉开发者。';return;}metrics.record('feedback',{level:g.level+1,sandbox:g.sandbox,rating:Number($('feedback-rating').value),difficulty:$('feedback-difficulty').value,comment:$('feedback-comment').value});refreshSummary();$('feedback-status').textContent=metrics.storageError?'浏览器无法保存，反馈暂存本页；请立即导出。':'反馈已保存在本机；可用下方按钮导出。';};
- $('export-records').onclick=()=>{const blob=new Blob([JSON.stringify(metrics.export(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`draw-clash-playtest-${Date.now()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
- $('clear-records').onclick=()=>{metrics.clear();refreshSummary();$('feedback-status').textContent='本机试玩记录已删除，关卡与阵容保留。';};
+
+// ---------- 启动 ----------
+async function boot() {
+  initOverlay(); applySettings();
+  $('#boot-status').textContent = t('boot.loading'); $('#boot-retry').textContent = t('boot.retry');
+  app.metrics.record('session_start');
+  await preload(CORE_IMAGES, p => { $('#boot-fill').style.width = `${Math.round(4 + p * 96)}%`; });
+  battle = createBattle(app); applySettings();
+  announce(claimAchievements(app.save));
+  go('home');
+  if (loaded.migrated) { app.persist(); toast(t('toast.welcomeBack'), 2600); }
+  // 浏览器要求先有一次点按才能发声。
+  const unlock = () => audio.unlock();
+  document.addEventListener('pointerdown', unlock, { capture: true }); document.addEventListener('keydown', unlock, { capture: true });
+  document.addEventListener('click', e => { if (e.target.closest('button')) audio.sfx('tap'); });
+  document.addEventListener('visibilitychange', () => audio.setHidden(document.hidden));
+  document.addEventListener('contextmenu', e => { if (!e.target.closest('textarea, input, select')) e.preventDefault(); });
+  // 只在正式站点注册离线缓存；本地开发时不注册，避免改了代码却看到旧文件。
+  if ('serviceWorker' in navigator && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
-$('playtest').onclick=openFeedback;
-const lastAttempts=new Map();
-// 胜负一出就记录进度和试玩数据；战报在短暂停顿后再弹出，停顿中离开也不会丢星。
-function finalize(){
-  const review=report(g),key=rosterKey(g)+':'+g.selectedItem,previous=lastAttempts.get(key);
-  const survivors=g.units.filter(u=>u.team===0&&u.hp>0).length;
-  const comparison=previous?`同阵容上次存活 ${previous.survivors} 人 → 本次 ${survivors} 人；用时 ${previous.time.toFixed(1)} → ${g.elapsed.toFixed(1)} 秒。`:'';
-  lastAttempts.set(key,{survivors,time:g.elapsed});
-  metrics.record('performance',{level:g.level+1,...frameSamples.result()});
-  const won=g.phase==='won',stars=starsFor(g),unlockGiant=won&&!g.sandbox&&g.level===2&&save.unlocked<3;
-  metrics.record('battle_end',{level:g.level+1,sandbox:g.sandbox,outcome:g.phase,seconds:g.elapsed,survivors,stars,spent:g.spent,item:g.selectedItem,speed});
-  const spotlight=!g.sandbox?SPOTLIGHTS[g.level]:null,earned=spotlight?.check(g)||false;if(earned)save.medals[g.level]=true;
-  if(won&&!g.sandbox){recordVictory(save,g.level,stars);persist();}
-  const progress=campaignSummary(save),next=won&&!g.sandbox&&g.level<LEVELS.length-1;
-  sound(g.phase);buzz(won?[18,50,30]:70,true);
-  return {review,survivors,comparison,won,stars,unlockGiant,spotlight,earned,progress,next};
-}
-function showResult(){
-  if(!beat||shown)return;shown=true;update();
-  const {review,survivors,comparison,won,stars,unlockGiant,spotlight,earned,progress,next}=beat.summary;
-  sheet(`<div class="result-icon">${won?'⚑':'↻'}</div>
-    <div class="eyebrow">${g.sandbox?'沙盒战斗结束':`第 ${g.level+1} / 10 关 · 已通关 ${progress.completed} / 10`}</div>
-    <h2 id="sheettitle">${won?(!g.sandbox&&progress.completed===10?'十关通关，漂亮！':'漂亮的一笔！'):'调整布阵，再来一次。'}</h2>
-    <p>${won?(g.sandbox?'你的小队赢下了这场沙盒战斗。':'这场胜利已记录，通关进度已保存。'):g.elapsed>=80?'战斗超时，调整站位和输出组合再试。':'阵容已保留。拖动几名士兵，验证下一种安排。'}</p>
-    <div class="stars" aria-label="本场${stars}星">${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</div>
-    <div class="stats"><div><strong>${g.elapsed.toFixed(1)}s</strong><small>战斗用时</small></div><div><strong>${survivors}</strong><small>我方存活</small></div><div><strong>${g.spent}</strong><small>阵容墨水</small></div></div>
-    ${spotlight?`<div class="challenge-result ${earned?'earned':''}"><b>${earned?'✦ 挑战达成':'可选挑战'} · ${spotlight.goal}</b><small>${spotlight.description}</small></div>`:''}
-    ${unlockGiant?'<div class="next-stage"><strong>新兵种已解锁 · 巨人</strong><small>高血量重型近战，最多1名。从兵种栏拖入即可布阵。</small></div>':''}
-    ${next?`<div class="next-stage"><strong>下一关 · ${LEVELS[g.level+1].title}</strong><small>${LEVELS[g.level+1].hint}</small></div><button class="primary result-primary" id="next">挑战第 ${g.level+2} 关 →</button>`:won&&!g.sandbox?'<button class="primary result-primary" id="result-map">查看十关地图 · 挑战三星</button>':'<button class="primary result-primary" id="retry">调整阵容，再试一次</button>'}
-    <div class="review"><h3>布阵复盘</h3>${review.observations.map(text=>`<p>${text}</p>`).join('')}${comparison?`<p class="comparison">${comparison}</p>`:''}<p class="tip">${review.tip}</p>${review.rows.length?`<table class="unit-stats"><caption>我方兵种表现 · 实际伤害</caption><thead><tr><th scope="col">兵种</th><th scope="col">输出</th><th scope="col">承伤</th><th scope="col">存活</th></tr></thead><tbody>${review.rows.map(row=>`<tr><th scope="row">${row.name}</th><td>${Math.round(row.dealt)}</td><td>${Math.round(row.taken)}</td><td>${row.alive}/${row.total}</td></tr>`).join('')}</tbody></table>`:''}</div>
-    ${won&&!g.sandbox?'<button class="result-secondary" id="retry">保留阵容，重试本关</button>':''}
-    ${!g.sandbox&&!(won&&g.level===LEVELS.length-1)?'<button class="result-secondary" id="view-map">关卡地图 · 查看全部10关</button>':''}
-    <button class="result-secondary" id="result-feedback">这局的试玩反馈</button><p class="campaign-foot">三星：获胜 · 至少半数存活 · 25秒内获胜</p>`);
-  $('result-feedback').onclick=openFeedback;
-  if($('next'))$('next').onclick=()=>reset(g.level+1,false);
-  if($('retry'))$('retry').onclick=()=>reset(g.level,g.sandbox,g.plan);
-  if($('result-map'))$('result-map').onclick=()=>openCampaign();
-  if($('view-map'))$('view-map').onclick=()=>openCampaign();
-}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('overlay').hidden)close();if(e.key==='Tab'&&!$('overlay').hidden){const els=[...document.querySelectorAll('#overlay button:not(:disabled)')];if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0].focus();}}if(!$('overlay').hidden||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();$('start').click();}if(e.key.toLowerCase()==='z')$('undo').click();if(e.key.toLowerCase()==='f'&&!$('speed').hidden)$('speed').click();});document.addEventListener('visibilitychange',()=>{if(document.hidden)input?.cancel();if(document.hidden&&g.phase==='battle'){g.phase='paused';update();}});
-let prev=performance.now(),acc=0,ui=0;function frame(now){if(g.phase==='battle'&&!document.hidden)frameSamples.add(now-prev);const dt=Math.min(.05,(now-prev)/1000);prev=now;acc+=dt*(g.phase==='battle'?speed:1);while(acc>=1/60){g.update(1/60);acc-=1/60;}
- if(g.events.length)feel(g.events.splice(0));
- if(['won','lost'].includes(g.phase)&&!beat){beat={start:now,summary:finalize()};update();}
- // 停顿前0.14秒定格，随后以慢动作播完倒地与烟尘，再弹出战报。
- if(beat&&!shown){const age=(now-beat.start)/1000;g.settle(age<.14?0:dt*(renderer.reduced?1:.45));if(age>=(renderer.reduced?.6:1.25))showResult();}
- renderer.draw(g,now/1000);ui+=dt;if(ui>.1){update();ui=0;}requestAnimationFrame(frame);}metrics.record('level_enter',{level:g.level+1,sandbox:false});update();if(!save.campaignSeen)openCampaign();requestAnimationFrame(frame);
+globalThis.__app = app;
+await boot();

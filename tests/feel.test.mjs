@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Battle} from '../src/engine.mjs';
-import {normalizeProgress} from '../src/progression.mjs';
+import {normalizeSave} from '../src/save.mjs';
 
 function runCollect(g){
   const seen=new Set();
@@ -32,9 +32,11 @@ test('收尾停顿只推进特效，不改变胜负、血量和战斗时间；�
 });
 
 test('倍速与震动偏好只接受合法值；旧存档默认正常速度并开启震动',()=>{
-  assert.equal(normalizeProgress(null).speed,1);assert.equal(normalizeProgress(null).haptics,true);
-  const s=normalizeProgress({speed:2,haptics:false});assert.equal(s.speed,2);assert.equal(s.haptics,false);
-  assert.equal(normalizeProgress({speed:9}).speed,1);assert.equal(normalizeProgress({speed:'2'}).speed,1);
+  const settings=raw=>normalizeSave(raw).settings;
+  assert.equal(settings(null).speed,1);assert.equal(settings(null).haptics,true);
+  assert.equal(settings({speed:2,haptics:false}).speed,2,'旧版存档把倍速放在最外层');assert.equal(settings({speed:2,haptics:false}).haptics,false);
+  assert.equal(settings({settings:{speed:2,haptics:false}}).speed,2);
+  assert.equal(settings({speed:9}).speed,1);assert.equal(settings({settings:{speed:'2'}}).speed,1);
 });
 
 test('倍速只是每帧多跑几个固定步长，结果与正常速度逐帧一致',()=>{

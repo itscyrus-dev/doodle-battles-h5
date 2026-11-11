@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import{PlaytestLog,FrameSamples}from'../src/playtest.mjs';import{guideStep,SPOTLIGHTS}from'../src/first-session.mjs';
-import{Battle}from'../src/engine.mjs';import{normalizeProgress}from'../src/progression.mjs';
+import{Battle}from'../src/engine.mjs';import{normalizeSave}from'../src/save.mjs';import{readFileSync}from'node:fs';
 import{draftOf,validateDraft}from'../src/drafts.mjs';import{setup,recipes,plans,build,run}from'./strategy-support.mjs';
 const store=()=>{let raw=null;return{getItem:()=>raw,setItem:(k,v)=>{raw=v}};};
 test('首次引导随真实布阵推进，并且不阻止玩家自行开战',()=>{
@@ -11,8 +11,8 @@ test('首次引导随真实布阵推进，并且不阻止玩家自行开战',()=
 });
 test('第二、三关分别介绍预览与道具；不会跳过未完成的操作',()=>{
  const g=new Battle(1);assert.equal(guideStep(g).id,'inspect');g.place('guard',100,400);assert.equal(guideStep(g,{inspected:true}).id,'mix');
- g.place('archer',100,500);assert.equal(guideStep(g,{inspected:true}).id,'start');
- const h=new Battle(2);assert.equal(guideStep(h).id,'blast');h.place('bomber',100,500);assert.equal(guideStep(h).id,'item');assert.equal(guideStep(h,{itemChosen:true}).id,'start');
+ g.place('archer',100,500);assert.equal(guideStep(g,{inspected:true}).id,'wall');
+ const h=new Battle(2);assert.equal(guideStep(h).id,'blast');h.place('bomber',100,500);assert.equal(guideStep(h).id,'item');assert.equal(guideStep(h,{itemChosen:true}).id,'area');
 });
 test('草稿整份验证预算、数量和障碍，恢复后与原布阵一致',()=>{
  const g=new Battle();g.place('guard',100,400);g.place('archer',200,500);
@@ -20,7 +20,8 @@ test('草稿整份验证预算、数量和障碍，恢复后与原布阵一致',
  assert.equal(validateDraft(0,Array(11).fill({type:'knight',x:100,y:400,team:0})),null);
  assert.equal(validateDraft(7,[{type:'guard',x:125,y:340,team:0}]),null);
  assert.equal(validateDraft(0,[{type:'giant',x:100,y:400,team:1}]),null);
- const save=normalizeProgress({unlocked:0,formations:{0:draftOf(g),9:[]},guides:{0:true,1:'true'},lessonActions:{0:{moved:true,inspected:'yes'}},medals:{0:true}});
+ assert.equal(validateDraft(0,[{type:'bomber',x:100,y:400,team:0}]),null,'还没解锁的兵种不能出现在存档阵容里');
+ const save=normalizeSave({unlocked:0,formations:{0:draftOf(g),9:[]},guides:{0:true,1:'true'},lessonActions:{0:{moved:true,inspected:'yes'}},medals:{0:true}});
  assert.equal(save.formations[0].length,2);assert.equal(save.formations[9],undefined);assert.equal(save.guides[1],undefined);assert.equal(save.medals[0],true);assert.deepEqual(save.lessonActions[0],{moved:true});
 });
 test('挑战依据真实战斗结果，零发射不能获得绕石射击挑战',()=>{
@@ -55,4 +56,11 @@ test('按照第一关引导的四人阵容，无需道具也可以获胜',()=>{c
 test('中期与最终关的可选挑战都有合法、实际可达成的通关样本',()=>{
  const mid=build(5,recipes.balancedLean);run(mid);assert.equal(SPOTLIGHTS[5].check(mid),true);
  const finale=build(9,plans.finale);run(finale,'smoke');assert.equal(SPOTLIGHTS[9].check(finale),true);
+});
+test('后三章的可选挑战可以用通关样本达成；引导与挑战的文案在两种语言里都有',async()=>{
+ const solutions=JSON.parse(readFileSync(new URL('./fixtures/level-solutions.json',import.meta.url),'utf8')),{STRINGS}=await import('../src/i18n.mjs');
+ for(const level of [19,29,39]){const g=new Battle(level);for(const u of solutions[level].plan)g.place(u.type,u.x,u.y);g.start();for(let i=0;i<5000&&g.phase==='battle';i++)g.update(1/60);assert.equal(SPOTLIGHTS[level].check(g),true,`第${level+1}关的挑战用样本无法达成`);}
+ for(const spot of Object.values(SPOTLIGHTS))for(const lang of ['zh','en'])for(const part of ['goal','desc'])assert.ok(STRINGS[lang][`spot.${spot.id}.${part}`],`${lang} 缺少 spot.${spot.id}.${part}`);
+ for(const level of [0,1,2,5,10,12,15,20,22]){const step=guideStep(new Battle(level));assert.ok(step,`第${level+1}关应有引导`);for(const lang of ['zh','en']){assert.ok(STRINGS[lang][step.title]);assert.ok(STRINGS[lang][step.text]);}}
+ assert.equal(guideStep(new Battle(0,true)),null,'沙盒没有引导');
 });

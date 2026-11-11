@@ -34,7 +34,7 @@ test('岩石挡箭记录准确；只有后排受近战命中才发出遇袭提�
  for(let i=0;i<30;i++)g.update(1/60);assert.equal(g.stats[0].stoneArrows,1);
  const u=g.units[0];g.hit(u,1,{type:'archer',x:200,y:100},true);assert.equal(u.threat,0);
  g.hit(u,1,g.units[1],false);assert.ok(u.threat>0);assert.equal(g.feedback.kind,'rear');
- g.phase='lost';const review=report(g);assert.match(review.tip,/1 支箭/);assert.ok(review.rows.some(row=>row.name==='弓手'));
+ g.phase='lost';const review=report(g);assert.equal(review.tip.key,'tip.stone');assert.equal(review.tip.params.n,1);assert.ok(review.rows.some(row=>row.type==='archer'));
 });
 test('真实战斗的输出和对方承伤守恒，复盘有兵种表与最早阵亡时间',()=>{
  const g=setup(0,recipes.balanced,'wide');run(g);
@@ -42,7 +42,7 @@ test('真实战斗的输出和对方承伤守恒，复盘有兵种表与最早�
   const dealt=Object.values(g.stats[team].byType).reduce((s,r)=>s+r.dealt,0);
   assert.ok(Math.abs(dealt-g.stats[1-team].damageTaken)<.001);
  }
- const r=report(g);assert.ok(r.rows.length>1);assert.ok(r.observations.some(s=>s.includes('最早阵亡')));
+ const r=report(g);assert.ok(r.rows.length>1);assert.ok(r.observations.some(o=>o.key==='obs.firstLoss'&&TYPES[o.params.type]));
 });
 test('道具倒计时暂停冻结，效果结束只出现一次结束提示',()=>{
  const g=new Battle(0,true);g.place('guard',100,450);g.place('guard',100,150,1);g.selectItem('smoke');g.start();g.useItem();

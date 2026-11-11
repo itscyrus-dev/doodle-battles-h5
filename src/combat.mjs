@@ -7,9 +7,11 @@ export function turnTowards(current, target, maxStep) {
 }
 export const unitScale = u => UNIT_SCALE * (u.type === 'giant' ? 1.38 : 1);
 export const center = u => ({x:u.x, y:u.y-20*unitScale(u)});
+const MUZZLE = { bomber: [5, -14], mage: [10, -18], default: [22, 0] };
 export function muzzle(u) {
   const p=center(u), s=unitScale(u);
-  const x=u.type==='bomber'?5:22, y=u.type==='bomber'?-14:0;
+  // 投掷和施法从手边或杖尖出手，射箭从弓的前端出手。
+  const [x, y] = MUZZLE[u.type] || MUZZLE.default;
   return {x:p.x+(Math.cos(u.angle)*x-Math.sin(u.angle)*y)*s,
     y:p.y+(Math.sin(u.angle)*x+Math.cos(u.angle)*y)*s};
 }
