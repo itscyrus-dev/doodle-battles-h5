@@ -640,12 +640,14 @@ export function createBattle(app) {
     app.metrics.record('battle_end', { level: g.level + 1, sandbox: g.sandbox, outcome: g.phase, seconds: g.elapsed, survivors, stars: summary.stars, spent: g.spent, item: g.selectedItem, speed });
     return { review, survivors, deployed, comparison, won, spotlight, medalNow, hadMedal, summary, timeout: !won && g.elapsed >= TIME_LIMIT };
   }
+  const sayObs = o => t(o.key, { ...o.params, name: o.params.type ? unitName(o.params.type) : undefined });
+  const unitTable = rows => rows.length ? `<table class="units"><thead><tr><th>${esc(t('result.tableUnit'))}</th><th>${esc(t('result.tableDealt'))}</th><th>${esc(t('result.tableTaken'))}</th><th>${esc(t('result.tableAlive'))}</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(unitName(r.type))}</td><td>${r.healed > 0 ? `+${Math.round(r.healed)}` : Math.round(r.dealt)}</td><td>${Math.round(r.taken)}</td><td>${r.alive}/${r.total}</td></tr>`).join('')}</tbody></table>` : '';
   function reviewBlock(review, comparison, open) {
     return `<details class="review" ${open ? 'open' : ''}><summary>${esc(t('result.review'))}</summary>
-      ${review.observations.map(o => `<p>${esc(t(o.key, { ...o.params, name: o.params.type ? unitName(o.params.type) : undefined }))}</p>`).join('')}
+      ${review.observations.map(o => `<p>${esc(sayObs(o))}</p>`).join('')}
       ${comparison ? `<p class="muted">${esc(comparison)}</p>` : ''}
       <p class="tip">${esc(t(review.tip.key, review.tip.params))}</p>
-      ${review.rows.length ? `<table class="units"><thead><tr><th>${esc(t('result.tableUnit'))}</th><th>${esc(t('result.tableDealt'))}</th><th>${esc(t('result.tableTaken'))}</th><th>${esc(t('result.tableAlive'))}</th></tr></thead><tbody>${review.rows.map(r => `<tr><td>${esc(unitName(r.type))}</td><td>${r.healed > 0 ? `+${Math.round(r.healed)}` : Math.round(r.dealt)}</td><td>${Math.round(r.taken)}</td><td>${r.alive}/${r.total}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${unitTable(review.rows)}
     </details>`;
   }
   // 战功：这一场打出来的数字，给“越打越强”的反馈。
@@ -657,26 +659,43 @@ export function createBattle(app) {
       routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null
     };
   }
-  function featsBlock(f) {
-    const cell = (n, key) => `<div><strong>${n}</strong><small>${esc(t(`feats.${key}`))}</small></div>`;
-    return `<h3 style="margin:12px 0 6px">${esc(t('feats.title'))}</h3><div class="statrow four">${cell(f.damage, 'damage')}${cell(f.kills, 'kills')}${cell(f.charges + f.flanks, 'strikes')}${cell(f.tactics, 'tactics')}</div>
-      ${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}`;
+  // 输了最想知道两件事：为什么输、下次怎么改。挑一条和建议对得上的观察放在建议前面；超时就直接说超时。
+  const TIP_CAUSE = { 'tip.spread': 'obs.explosion', 'tip.frontline': 'obs.backlineDeaths', 'tip.chill': 'obs.chilled' };
+  function lossInsight(review, timeout) {
+    if (timeout) return `<div class="insight"><p class="tip">${esc(t('result.timeoutSub'))}</p></div>`;
+    const why = review.observations.find(o => o.key === TIP_CAUSE[review.tip.key]) || review.observations.find(o => o.key === 'obs.firstLoss');
+    return `<div class="insight">${why ? `<p>${esc(sayObs(why))}</p>` : ''}<p class="tip">${esc(t(review.tip.key, review.tip.params))}</p></div>`;
   }
+  // 详细数据默认收起：全部观察、和上一次的对比、战功数字、每个兵种的表现。
+  function runDetails(review, comparison, f) {
+    const nums = [['damage', f.damage], ['strikes', f.charges + f.flanks], ['tactics', f.tactics]].map(([k, n]) => `${t(`feats.${k}`)} ${n}`).join(' · ');
+    return `<details class="review"><summary>${esc(t('result.details'))}</summary>
+      ${review.observations.map(o => `<p>${esc(sayObs(o))}</p>`).join('')}
+      ${comparison ? `<p class="muted">${esc(comparison)}</p>` : ''}
+      <p class="muted">${esc(nums)}</p>${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}
+      ${unitTable(review.rows)}
+    </details>`;
+  }
+  // 远征一战的结算：一句结论、一个框（赢了是战利品，输了是原因和建议）、一个按钮，其余数字收成一行小字。
   function showRunResult() {
-    const { review, survivors, deployed, comparison, won, result, feats } = beat.summary, r = run();
+    const { review, survivors, deployed, comparison, won, result, feats, timeout } = beat.summary, r = run();
     const coin = n => `<b>+${n} ${img('icons/coin.webp')}</b>`;
     const overNow = r.screen === 'over';
     const title = won ? t('run.won.title') : overNow ? t('run.over.defeat') : t('run.lost.title');
-    const sub = won ? t('run.won.sub') : overNow ? t('run.over.defeatSub') : t('run.lost.sub', { n: r.hearts });
+    const sub = won ? t('run.won.sub') : overNow ? t('run.over.defeatSub') : t('run.lost.sub');
+    const hearts = won ? '' : `<span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span>`;
+    const alive = t('result.factAlive', { a: survivors, b: deployed });
+    const facts = [t('result.factTime', { n: g.elapsed.toFixed(1) }), ...(won
+      ? [alive, ...(feats.mvp ? [t('feats.best', { name: unitName(feats.mvp.type) })] : [])]
+      : [t('result.factKills', { a: feats.kills, b: g.units.filter(u => u.team === 1).length }), ...(survivors ? [alive] : [])])];
     const sheet = openSheet({
       className: 'result-sheet', dismissable: false,
-      body: `<div class="result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}
-        <div class="kicker">${esc(titles()[1])}</div><h2 id="sheet-title">${esc(title)}</h2><p class="muted">${esc(sub)}</p>
-        <div class="statrow"><div><strong>${g.elapsed.toFixed(1)}s</strong><small>${esc(t('result.time'))}</small></div><div><strong>${survivors}/${deployed}</strong><small>${esc(t('result.survivors'))}</small></div><div><strong><span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span></strong><small>${esc(t('run.hearts'))}</small></div></div>
-        ${featsBlock(feats)}
-        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.ink ? `<div class="row"><span>${esc(t('reward.ink', { n: result.ink }))}</span><b>+${result.ink} ${img('icons/ink.webp')}</b></div>` : ''}${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : ''}
+      body: `<div class="result run-result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}
+        <div class="kicker">${esc(titles()[1])}</div><h2 id="sheet-title">${esc(title)}</h2><p class="sub">${hearts}<span>${esc(sub)}</span></p>
+        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.ink ? `<div class="row"><span>${esc(t('reward.ink', { n: result.ink }))}</span><b>+${result.ink} ${img('icons/ink.webp')}</b></div>` : ''}${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : lossInsight(review, timeout)}
         <div class="actions">${won ? `<button class="btn btn-gold big block" id="r-go">${esc(t('run.toReward'))} ${icon('next')}</button>` : overNow ? `<button class="btn btn-red big block" id="r-go">${esc(t('run.toOver'))}</button>` : `<button class="btn btn-gold big block" id="r-retry">${esc(t('run.retry'))}</button>`}</div>
-        ${reviewBlock(review, comparison, !won)}</div>`
+        <p class="facts">${esc(facts.join(' · '))}</p>
+        ${runDetails(review, comparison, feats)}</div>`
     });
     if (won) setTimeout(() => audio.sfx('coin'), 700);
     const exit = fn => { closeSheet(true); fn(); };

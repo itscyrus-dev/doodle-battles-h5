@@ -1,4 +1,4 @@
-export const PLAYTEST_VERSION='0.12.1';
+export const PLAYTEST_VERSION='0.12.2';
 const KEY='doodle-playtest-v1',LIMIT=500;
 const ALLOWED=new Set(['session_start','level_enter','battle_start','battle_end','formation_move','formation_remove','formation_place','placement_rejected','guide_step','guide_skip','guide_complete','item_used','performance','feedback','formation_route','run_start','run_node','run_end','card_play','tactic_cast','first_route','tutorial_step']);
 const FIELDS=new Set(['level','sandbox','units','spent','item','outcome','seconds','survivors','stars','type','reason','step','frames','avgFrameMs','p95FrameMs','rating','difficulty','comment','speed','run','kind','act','warband','result','nodes','wins','payout','card','effect','routes','cards','tactics','lesson','tutorial','first']);

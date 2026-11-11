@@ -313,6 +313,15 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 2px soli
 .result .big-stars i { animation: starpop .45s cubic-bezier(.2, .9, .3, 1.5) both; }
 .result .big-stars i:nth-child(2) { animation-delay: .25s; }
 .result .big-stars i:nth-child(3) { animation-delay: .5s; }
+/* 远征一战的结算：一句结论、一个框、一个按钮，其余数字收成一行小字，不用往下滚。 */
+.run-result .emblem { width: 120px; height: 82px; }
+.run-result .sub { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 0; color: var(--ink-soft); font-size: 14px; font-weight: 700; }
+.run-result .sub .hearts img { width: 24px; height: 24px; }
+.insight { text-align: left; margin: 14px 0 12px; padding: 12px 16px; border-radius: 16px; background: var(--paper-2); border: 2.5px solid var(--ink); }
+.insight p { margin: 0; font-size: 15px; font-weight: 800; }
+.insight .tip { color: #2d6b3a; }
+.insight p + .tip { margin-top: 6px; }
+.result .facts { margin: 10px 0 0; font-size: 13px; font-weight: 800; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
 .statrow.four { grid-template-columns: repeat(4, 1fr); }
 .statrow div { padding: 9px 4px; border-radius: 14px; background: var(--paper-2); border: 2.5px solid var(--ink); }

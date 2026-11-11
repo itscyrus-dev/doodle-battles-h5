@@ -42,7 +42,7 @@ test('按规则拼出来的条目（兵种、道具、成就、卡牌、遗物�
     ...Object.entries(EVENTS).flatMap(([id, e]) => [`event.${id}`, `event.${id}.text`, ...e.choices.map(c => `event.${id}.${c}`)]),
     ...campOptions({ hearts: 1, maxHearts: 3, deck: [] }).flatMap(o => [`camp.${o.id}`, `camp.${o.id}.desc`, `camp.${o.id}.no`]),
     ...['remove', 'upgrade'].flatMap(id => [`shop.${id}`, `shop.${id}.desc`]),
-    ...['damage', 'kills', 'strikes', 'tactics'].map(k => `feats.${k}`),
+    ...['damage', 'strikes', 'tactics'].map(k => `feats.${k}`),
     ...[...TEMPLATE_ORDER, ...BOSSES.map(b => b.id)].map(id => `intent.${id}`),
     ...LESSONS.flatMap(l => ['name', 'won', 'learned'].map(k => `tutorial.${l.id}.${k}`)), ...LESSONS.filter(l => !l.hand.length).map(l => `tutorial.${l.id}.side`)
   ];
