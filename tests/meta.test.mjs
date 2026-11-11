@@ -18,7 +18,7 @@ test('旧版存档可以迁移：关卡、星级和偏好保留，新字段取�
   const { save, migrated } = loadSave(store);
   assert.equal(migrated, true); assert.equal(save.unlocked, 3); assert.equal(save.currentLevel, 3); assert.deepEqual(save.stars, { 0: 3, 1: 2, 2: 1 });
   assert.equal(save.settings.haptics, false); assert.equal(save.settings.speed, 2); assert.equal(save.settings.music, true); assert.equal(save.seenIntro, true); assert.equal(save.item, 'smoke');
-  assert.equal(save.coins, 0); assert.deepEqual(save.skins, ['blue']); assert.equal(save.v, 2);
+  assert.equal(save.coins, 0); assert.deepEqual(save.skins, ['blue']); assert.equal(save.v, 3);
   assert.deepEqual(campaignSummary(save), { completed: 3, stars: 6, maxStars: 120, total: 40 });
   assert.equal(writeSave(store, save), true); assert.equal(loadSave(store).migrated, false); assert.ok(store.data[SAVE_KEY]);
 });

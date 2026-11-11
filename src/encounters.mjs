@@ -13,9 +13,9 @@ export const ACTS = 3, ROWS = 6; // 每章 6 层普通节点，第 7 层是首�
 export const expectedInk = step => Math.min(240, 100 + 8 * step);
 export const stepOf = (act, row) => act * (ROWS + 1) + row;
 // 敌军价值 = 预计墨水 × 比例。普通战随层数变难；精英更强；首领战的比例只算护卫，不含首领本人。
-export const RATIO = { battle: [.66, .7, .74, .78, .82, .86], elite: 1, boss: .75 };
-// 敌军属性强化：每章生命 +12%、伤害 +8%；精英战再加生命。
-export const enemyScale = (act, kind) => ({ hp: (1 + act * .12) * (kind === 'elite' ? 1.15 : 1), damage: 1 + act * .08 });
+export const RATIO = { battle: [.8, .86, .92, .98, 1.04, 1.1], elite: 1.35, boss: [.7, .9, .75] };
+// 敌军属性强化：每章生命 +25%、伤害 +15%（出战人数有上限，后期主要靠这个变难）；精英战再加生命。
+export const enemyScale = (act, kind) => ({ hp: (1 + act * .25) * (kind === 'elite' ? 1.2 : 1), damage: 1 + act * .15 });
 
 // 各章允许出现的敌方兵种（精英和首领可以提前出现更重的兵种）。
 function allowed(type, act, row, kind) {
@@ -67,14 +67,14 @@ export const TEMPLATE_ORDER = Object.keys(TEMPLATES);
 
 // 首领战：固定的首领加按规模补齐的护卫。boss 里的数字是首领自身的属性倍率（size 只影响画面大小）。
 export const BOSSES = [
-  { id: 'warlord', name: { zh: '巨人督军', en: 'Giant Warlord' }, boss: s(520, 300, ['giant'], { boss: { hp: 2.6, damage: 1.3, size: 1.25 } }), rocks: [{ x: 400, y: 160, r: 30 }, { x: 400, y: 440, r: 30 }], slots: [
+  { id: 'warlord', name: { zh: '巨人督军', en: 'Giant Warlord' }, boss: s(520, 300, ['giant'], { boss: { hp: 2.2, damage: 1.25, size: 1.25 } }), rocks: [{ x: 400, y: 160, r: 30 }, { x: 400, y: 440, r: 30 }], slots: [
     s(440, 300, ['guard']), s(600, 230, ['archer']), s(600, 370, ['archer']), s(450, 210, ['knight']), s(450, 390, ['knight']), s(620, 300, ['bomber', 'archer']), s(470, 130, ['knight']), s(470, 470, ['knight']), s(660, 200, ['archer']), s(660, 400, ['archer'])
   ] },
-  { id: 'gunner', name: { zh: '峡谷炮台长', en: 'Canyon Gunner' }, boss: s(600, 300, ['bomber'], { hold: true, boss: { hp: 5, damage: 1.25, aoe: 1.3, size: 1.25 } }), rocks: [{ x: 430, y: 220, r: 36 }, { x: 430, y: 380, r: 36 }], slots: [
+  { id: 'gunner', name: { zh: '峡谷炮台长', en: 'Canyon Gunner' }, boss: s(600, 300, ['bomber'], { hold: true, boss: { hp: 10, damage: 1.5, aoe: 1.35, size: 1.25 } }), rocks: [{ x: 430, y: 220, r: 36 }, { x: 430, y: 380, r: 36 }], slots: [
     s(470, 300, ['guard']), s(530, 160, ['lancer'], { route: TOP_SWEEP }), s(530, 440, ['lancer'], { route: BOTTOM_SWEEP }), s(540, 230, ['archer'], { hold: true }), s(540, 370, ['archer'], { hold: true }),
     s(650, 300, ['healer']), s(470, 120, ['knight']), s(470, 480, ['knight']), s(640, 200, ['bomber'], { hold: true }), s(640, 400, ['archer'], { hold: true })
   ] },
-  { id: 'queen', name: { zh: '冰霜女王', en: 'Frost Queen' }, boss: s(610, 300, ['mage'], { boss: { hp: 6, damage: 1.4, aoe: 1.35, chill: 1.4, size: 1.3 } }), rocks: [{ x: 410, y: 300, r: 40, kind: 'pond' }], slots: [
+  { id: 'queen', name: { zh: '冰霜女王', en: 'Frost Queen' }, boss: s(610, 300, ['mage'], { boss: { hp: 5, damage: 1.3, aoe: 1.35, chill: 1.4, size: 1.3 } }), rocks: [{ x: 410, y: 300, r: 40, kind: 'pond' }], slots: [
     s(480, 300, ['giant']), s(560, 230, ['healer']), s(560, 370, ['healer']), s(450, 190, ['guard']), s(450, 410, ['guard']), s(540, 130, ['lancer'], { route: TOP_SWEEP }), s(540, 470, ['lancer'], { route: BOTTOM_SWEEP }),
     s(640, 180, ['archer']), s(640, 420, ['archer']), s(660, 300, ['mage'])
   ] }
@@ -97,7 +97,7 @@ function terrain(rand, act, kind, fixed) {
 // 生成一场遭遇战。value 是敌军兵种墨水价值之和的目标；实际生成的规模会落在目标附近。
 export function makeEncounter({ seed, act, row, kind = 'battle', node = '' }) {
   const rand = rng(hash(seed, act, row, kind, node));
-  const step = stepOf(act, row), ratio = kind === 'battle' ? RATIO.battle[Math.min(row, RATIO.battle.length - 1)] : RATIO[kind];
+  const step = stepOf(act, row), ratio = kind === 'battle' ? RATIO.battle[Math.min(row, RATIO.battle.length - 1)] : kind === 'boss' ? RATIO.boss[act] ?? RATIO.boss.at(-1) : RATIO.elite;
   const target = Math.round(expectedInk(step) * ratio);
   const bossDef = kind === 'boss' ? BOSSES[act % BOSSES.length] : null;
   const templateId = bossDef ? bossDef.id : pickOne(rand, TEMPLATE_ORDER);

@@ -513,6 +513,296 @@
     "inbox/candidates/unit_mage/unit_mage_2.png"
    ],
    "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the tall pointed royal-blue hat and the long royal-blue robe with white fur trim; one hand holds the wooden staff topped with the pale icy crystal with tiny snowflakes around it. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "bg_field_meadow_wide",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "bg",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Top-down view of a sunny green meadow of short soft grass with tiny sparse details (grass tufts, tiny white and yellow wildflowers, a few pebbles) for a board game, wide landscape orientation, painted edge to edge. Even, low-contrast, softly textured open ground everywhere. Along the far left edge a vertical column of small blue tents and blue pennant flags; along the far right edge a vertical column of small coral-red tents and coral-red pennant flags; a few low bushes along the top and bottom edges. Empty of figures and writing. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "bg_field_canyon_wide",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "bg",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Top-down view of a warm desert canyon floor of pale packed sand with tiny sparse details (small cracks in the sand, tiny dry grass tufts, a few pebbles) for a board game, wide landscape orientation, painted edge to edge. Even, low-contrast, softly textured open ground everywhere. Along the far left edge a vertical column of small blue tents and blue pennant flags; along the far right edge a vertical column of small coral-red tents and coral-red pennant flags; a few sandstone rocks and small cacti along the top and bottom edges. Empty of figures and writing. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "bg_field_snow_wide",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "bg",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Top-down view of a calm snowfield of soft pale blue-white snow with tiny sparse details (gentle snow drifts, tiny frozen grass tips, a few small icy pebbles) for a board game, wide landscape orientation, painted edge to edge. Even, low-contrast, softly textured open ground everywhere. Along the far left edge a vertical column of small blue tents and blue pennant flags; along the far right edge a vertical column of small coral-red tents and coral-red pennant flags; a few snow-dusted pine shrubs and icy rocks along the top and bottom edges. Empty of figures and writing. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "bg_field_citadel_wide",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "bg",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Top-down view of a castle courtyard paved with large worn cream-grey stone tiles with moss in the cracks and tiny sparse details (hairline cracks, small moss patches, a few fallen autumn leaves) for a board game, wide landscape orientation, painted edge to edge. Even, low-contrast, softly textured open ground everywhere. Along the far left edge a vertical column of small blue tents and blue pennant flags; along the far right edge a vertical column of small coral-red tents and coral-red pennant flags; low ivy-covered stone wall segments and clay flower pots along the top and bottom edges. Empty of figures and writing. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "bg_home_wide",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "bg",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "A sunny storybook meadow valley in the morning, wide landscape orientation, painted edge to edge: soft rolling green hills, a wide open empty grassy clearing across the lower middle, a small stone castle with blue pennant flags on a distant hill at the far right, fluffy clouds in a wide calm pale sky across the top third, a few round trees and wildflowers at the left and right edges, a giant yellow pencil lying in the grass near the bottom-right corner like a fallen log with a small glass bottle of dark blue ink beside it. The left third of the picture is calm and uncluttered. Empty of figures and writing. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "map_run_meadow",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "map",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Illustrated fantasy region map seen from above, wide landscape orientation, used as the backdrop of a route-select screen: a gentle green meadow region with rolling grassy hills, small round forests, a little pond, a windmill and a few farm fields. Landmarks are small and spread out with calm open areas between them. No roads, no paths, no trails, no markers, no characters, no text, no labels, no compass rose, no frame or border; the painting fills the entire image edge to edge. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "map_run_canyon",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "map",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Illustrated fantasy region map seen from above, wide landscape orientation, used as the backdrop of a route-select screen: a warm red-sand canyon region with mesas, dry riverbeds, small oases with palm trees and scattered sandstone rocks. Landmarks are small and spread out with calm open areas between them. No roads, no paths, no trails, no markers, no characters, no text, no labels, no compass rose, no frame or border; the painting fills the entire image edge to edge. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "map_run_snow",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "map",
+   "size": "1536x1024",
+   "transparent": false,
+   "prompt": "Illustrated fantasy region map seen from above, wide landscape orientation, used as the backdrop of a route-select screen: a calm snowy highland region with frosted pine forests, a frozen lake, gentle snowy hills and a small icy castle far away. Landmarks are small and spread out with calm open areas between them. No roads, no paths, no trails, no markers, no characters, no text, no labels, no compass rose, no frame or border; the painting fills the entire image edge to edge. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_swift",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small round glass bottle of dark blue ink with a pair of little white feathered wings on its sides and a few wind swirl lines. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_charge",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small glass bottle of dark blue ink with a shiny golden spearhead stopper and a bright spark. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_flank",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a thick navy ink brush stroke curving around a small grey rock into a bold arrowhead. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_anchor",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small iron anchor wrapped with a royal blue cloth ribbon. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_thick",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a chubby round glass bottle filled with thick dark blue ink with a cream label showing a red heart shape. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_sharp",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a steel calligraphy pen nib with a tiny bright gleam on its sharp tip. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_thrift",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small glass ink bottle with a shiny gold coin leaning against it. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_squad",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a rolled parchment scroll tied with a blue ribbon and a blue wax seal, with two tiny blue pennant flags. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_drum",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small red and gold war drum with two wooden drumsticks crossed on top. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_bleed",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a glossy splash puddle of dark blue ink with a few round droplets around it. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_spring",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small glass ink bottle with a fresh green sprout with two leaves growing out of it. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_echo",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small glass ink bottle half full of glowing blue ink with soft concentric ripple rings around it. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_bounty",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a small tied cloth coin pouch with a few gold coins spilling out. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "relic_longbow",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game item icon: a curved wooden longbow with a taut string and a single arrow with blue fletching. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_battle",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: two crossed short swords with steel blades and brown leather grips. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_elite",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a dark iron knight helmet with two small curved horns and a coral-red plume. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_boss",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a golden crown with red gems resting on a small coral-red cushion. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_camp",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a cozy small campfire of crossed logs with warm orange flames. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_shop",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a small merchant stall with a striped cream and coral-red awning and a few sacks and crates. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_event",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a glowing old brass lantern with a soft golden light. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "node_heart",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "icon",
+   "size": "1024x1024",
+   "transparent": true,
+   "prompt": "Game map icon: a glossy red heart-shaped gem with a small white highlight and a thin gold rim. Chunky rounded shapes with a clean dark navy outline, soft gouache shading and a small highlight, sticker-like, centered, the whole object fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No text, no letters, no numbers, no frame. Art style: hand-painted gouache storybook illustration for a cozy strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
   }
  ]
 }

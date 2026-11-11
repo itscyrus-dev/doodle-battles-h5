@@ -53,7 +53,8 @@ test('遭遇战：同一输入结果相同；敌人都在红方区域内、不�
     }
     for (let i = 0; i < e.enemies.length; i++) for (let j = i + 1; j < e.enemies.length; j++) assert.ok(Math.hypot(e.enemies[i].x - e.enemies[j].x, e.enemies[i].y - e.enemies[j].y) >= 24);
     if (kind === 'boss') assert.equal(e.enemies.filter(u => u.boss).length, 1, '首领战有且只有一名首领');
-    else assert.ok(e.value >= e.target * .7 && e.value <= e.target * 1.12, `规模 ${e.value} / 目标 ${e.target}`);
+    // 后期目标规模超过阵型能容纳的人数时，至少要摆满大部分位置（难度再由属性强化补上）。
+    else assert.ok((e.value >= e.target * .7 || e.enemies.length >= 8) && e.value <= e.target * 1.12, `规模 ${e.value} / 目标 ${e.target}，${e.enemies.length} 人`);
     if (act === 0 && kind === 'battle') assert.ok(e.enemies.every(u => !['lancer', 'mage', 'healer', 'giant'].includes(u.type)), '第一章普通战不出现高级兵种');
   }
   assert.ok(expectedInk(stepOf(2, ROWS)) > expectedInk(0));

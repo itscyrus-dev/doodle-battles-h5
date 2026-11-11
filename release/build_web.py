@@ -49,7 +49,10 @@ themes = ['meadow', 'canyon', 'snow', 'citadel']
 needed = [f'units/{u}{view}.webp' for u in units for view in ('', '-back')] + [f'icons/item-{i}.webp' for i in ['heal', 'smoke', 'rally', 'thunder', 'frost']]
 needed += [f'icons/{i}.webp' for i in ['coin', 'star', 'ink', 'trophy', 'daily', 'codex', 'hint', 'sandbox', 'palette', 'map']]
 needed += [f'{kind}-{t}.webp'.replace('bg-', 'bg/field-').replace('map-', 'map/').replace('rock-', 'obstacles/rock-') for kind in ['bg', 'map', 'rock'] for t in themes]
-needed += ['bg/home.webp', 'ui/logo.webp', 'ui/victory.webp', 'ui/defeat.webp', 'icon/icon-192.png', 'icon/icon-512.png', 'icon/apple-touch-icon.png', 'icon/favicon-64.png']
+needed += [f'bg/field-{t}-wide.webp' for t in themes] + [f'map/run-{t}.webp' for t in themes[:3]] + ['bg/home-wide.webp', 'icons/heart.webp', 'icons/chest.webp']
+needed += [f'icons/node-{k}.webp' for k in ['battle', 'elite', 'boss', 'camp', 'shop', 'event']]
+needed += [f'icons/relic-{r}.webp' for r in ['swift', 'charge', 'flank', 'anchor', 'thick', 'sharp', 'thrift', 'squad', 'drum', 'bleed', 'spring', 'echo', 'bounty', 'longbow']]
+needed += ['ui/logo.webp', 'ui/victory.webp', 'ui/defeat.webp', 'icon/icon-192.png', 'icon/icon-512.png', 'icon/apple-touch-icon.png', 'icon/favicon-64.png']
 missing += [f'assets/{a}' for a in needed if not (out / 'assets' / a).is_file()]
 if missing:
     raise SystemExit('缺少文件：\n' + '\n'.join(missing))

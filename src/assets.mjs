@@ -27,8 +27,9 @@ export const UNIT_TYPES = ['knight', 'guard', 'archer', 'bomber', 'giant', 'lanc
 export const unitPath = (type, view = 'front') => `units/${type}${view === 'back' ? '-back' : ''}.webp`;
 export const THEMES = ['meadow', 'canyon', 'snow', 'citadel'];
 export const CORE_IMAGES = [
-  ...UNIT_TYPES.map(type => unitPath(type)), ...UNIT_TYPES.map(type => unitPath(type, 'back')), 'ui/logo.webp', 'bg/home.webp', 'bg/field-meadow.webp',
-  'icons/coin.webp', 'icons/star.webp', 'icons/ink.webp', 'icons/item-heal.webp', 'icons/item-smoke.webp', 'icons/item-rally.webp', 'icons/item-thunder.webp', 'icons/item-frost.webp'
+  ...UNIT_TYPES.map(type => unitPath(type)), ...UNIT_TYPES.map(type => unitPath(type, 'back')), 'ui/logo.webp', 'bg/home-wide.webp', 'bg/field-meadow-wide.webp',
+  'icons/coin.webp', 'icons/star.webp', 'icons/ink.webp', 'icons/item-heal.webp', 'icons/item-smoke.webp', 'icons/item-rally.webp', 'icons/item-thunder.webp', 'icons/item-frost.webp',
+  'icons/heart.webp', ...['battle', 'elite', 'boss', 'camp', 'shop', 'event'].map(k => `icons/node-${k}.webp`)
 ];
 
 // 队伍配色：hue 为目标色相；sat、light 微调饱和度和亮度。blue 是原图，不处理。

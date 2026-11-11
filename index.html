@@ -2,18 +2,16 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#22304a">
-<meta name="description" content="Draw & Clash — draw your squad, then watch it fight. A cozy tactics game with 40 hand-made levels. 涂鸦小队：画出你的小队，看他们自己打完这一仗。">
+<meta name="description" content="Draw & Clash — draw your squad and its battle plan, then watch it fight. A roguelike tactics game for PC with an expedition mode and 40 hand-made campaign levels. 涂鸦小队：画出小队和行军路线，看他们自己打完这一仗。">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Draw & Clash">
 <title>Draw &amp; Clash · 涂鸦小队</title>
 <link rel="icon" type="image/png" href="assets/icon/favicon-64.png">
 <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" as="image" href="assets/bg/home.webp" type="image/webp">
+<link rel="preload" as="image" href="assets/bg/home-wide.webp" type="image/webp">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -29,53 +27,62 @@
 
   <section id="screen-home" class="screen" hidden></section>
   <section id="screen-map" class="screen" hidden></section>
+  <section id="screen-run" class="screen" hidden></section>
 
   <section id="screen-battle" class="screen" hidden>
     <header class="b-top">
       <button id="b-back" class="ibtn dark"></button>
       <div class="b-title"><small id="b-chapter"></small><strong id="b-name"></strong></div>
-      <div class="ink-pill" id="b-inkpill"><img src="assets/icons/ink.webp" alt="" draggable="false"><b id="b-ink">0</b><span id="b-inkmax"></span></div>
-    </header>
-    <div class="b-arena" id="b-arena">
-      <canvas id="arena"></canvas>
       <div class="hud">
         <div class="hud-team blue"><span id="hud-blue-name"></span><b id="hud-blue">0</b><i class="bar"><em id="hud-blue-bar"></em></i></div>
-        <div class="hud-mid"><span id="hud-time"></span><button id="b-speed" hidden aria-pressed="false">1×</button></div>
+        <div class="hud-mid"><span id="hud-time"></span></div>
         <div class="hud-team red"><i class="bar"><em id="hud-red-bar"></em></i><b id="hud-red">0</b><span id="hud-red-name"></span></div>
       </div>
-      <section id="coach" hidden><div><b id="coach-title"></b><p id="coach-text"></p></div><button id="coach-skip" class="chip-btn"></button></section>
-      <div id="b-alert" hidden role="status"></div>
-      <div id="b-target" hidden role="status"></div>
-      <button id="b-autofill" class="btn btn-paper small" hidden></button>
-      <div id="b-inspect" hidden><div><b id="b-inspect-title"></b><small id="b-inspect-status"></small></div><button id="b-inspect-close" class="ibtn tiny"></button></div>
-      <div id="dragstatus" hidden role="status"></div>
-      <div id="recycle"></div>
-      <button id="b-hint" class="ibtn gold"></button>
-      <div id="b-tip"></div>
-    </div>
-    <div class="b-tray" id="b-tray">
-      <div class="tray-build" id="tray-build">
+      <div class="b-status" id="b-status"></div>
+      <div class="ink-pill" id="b-inkpill"><img src="assets/icons/ink.webp" alt="" draggable="false"><b id="b-ink">0</b><span id="b-inkmax"></span></div>
+    </header>
+    <div class="b-body">
+      <aside class="b-left" id="b-left">
+        <div class="tools" id="b-tools" role="toolbar"></div>
         <div id="roster" class="roster"></div>
-        <div class="b-controls">
+        <div class="b-edit">
           <button id="b-undo" class="ibtn"></button>
-          <button id="b-erase" class="ibtn" aria-pressed="false"></button>
           <button id="b-clear" class="ibtn"></button>
-          <button id="b-item" class="item-slot"></button>
-          <button id="b-start" class="btn btn-gold big"></button>
+          <span class="b-count" id="b-count"></span>
         </div>
+        <div id="recycle"></div>
+      </aside>
+      <div class="b-arena" id="b-arena">
+        <canvas id="arena"></canvas>
+        <section id="coach" hidden><div><b id="coach-title"></b><p id="coach-text"></p></div><button id="coach-skip" class="chip-btn"></button></section>
+        <div id="b-alert" hidden role="status"></div>
+        <div id="b-target" hidden role="status"></div>
+        <button id="b-autofill" class="btn btn-paper small" hidden></button>
+        <div id="b-inspect" hidden><div><b id="b-inspect-title"></b><small id="b-inspect-status"></small></div></div>
+        <div id="dragstatus" hidden role="status"></div>
+        <div id="b-tip"></div>
       </div>
-      <div class="tray-fight" id="tray-fight" hidden>
-        <button id="b-use" class="use-item"></button>
-        <div class="fight-side">
-          <button id="b-pause" class="btn btn-paper"></button>
-          <button id="b-redeploy" class="btn btn-paper"></button>
+      <aside class="b-right" id="b-right">
+        <div class="panel-build" id="panel-build">
+          <section class="intel" id="b-intel"></section>
+          <section class="loadout" id="b-loadout"></section>
+          <section class="keys" id="b-keys"></section>
+          <button id="b-start" class="btn btn-gold big block"></button>
         </div>
-      </div>
+        <div class="panel-fight" id="panel-fight" hidden>
+          <button id="b-use" class="use-item"></button>
+          <div class="fight-row"><button id="b-pause" class="btn btn-paper"></button><button id="b-speed" class="btn btn-paper" aria-pressed="false">1×</button></div>
+          <button id="b-redeploy" class="btn btn-paper block"></button>
+          <section class="live" id="b-live"></section>
+        </div>
+      </aside>
     </div>
   </section>
 
   <div id="overlay" hidden><section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></section></div>
+  <div id="tooltip" role="tooltip" hidden></div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <div id="rotate-note" hidden></div>
 </main>
 <script type="module" src="src/bootstrap.mjs"></script>
 </body>

@@ -1,5 +1,6 @@
 // 布阵时的战术预览：与战斗相同的选敌、射程和障碍判定；只预估静态接敌，不预测胜负。
 import { TYPES } from './data.mjs';
+import { unitDef } from './engine.mjs';
 import { center } from './combat.mjs';
 import { clearPath, nextWaypoint } from './terrain.mjs';
 
@@ -13,11 +14,13 @@ function firstIntersection(a, b, rocks) {
 }
 const nearest = (u, list) => list.reduce((a, b) => (Math.hypot(a.x - u.x, a.y - u.y) < Math.hypot(b.x - u.x, b.y - u.y) ? a : b));
 
-// status 是状态代码，由界面翻译：no-enemy / support / unreachable / blocked / in-range / lob / hunt / route
-export function formationPreview(g, u) {
-  const def = TYPES[u.type], a = center(u);
-  const base = { unit: u, range: def.range, origin: a, target: null, route: [u], blocked: false };
-  if (def.heals) return { ...base, status: 'support' };
+// status 是状态代码，由界面翻译：no-enemy / support / unreachable / blocked / in-range / lob / hunt / route / hold
+// 有行军路线时从路线终点开始估算；range 用的是带上远征加成后的射程。
+export function formationPreview(g, unit) {
+  const def = g.mods ? unitDef(unit.type, unit.team, g.mods) : TYPES[unit.type];
+  const end = unit.route?.length ? unit.route.at(-1) : null, u = end ? { ...unit, x: end.x, y: end.y } : unit, a = center(u);
+  const base = { unit, range: def.range, origin: a, target: null, route: [u], blocked: false, marching: !!end, hold: !!unit.hold };
+  if (def.heals) return { ...base, status: unit.hold ? 'hold' : 'support' };
   const enemies = (g.sandbox ? g.plan : g.enemy).filter(v => v.team !== u.team);
   if (!enemies.length) return { ...base, status: 'no-enemy' };
   const prey = def.hunter ? enemies.filter(v => TYPES[v.type].backline) : [];
@@ -26,6 +29,7 @@ export function formationPreview(g, u) {
   const needsSight = def.projectile === 'arrow';
   const blocked = needsSight && !clearPath(a, b, arrowRocks);
   const inRange = Math.hypot(a.x - b.x, a.y - b.y) <= def.range + TYPES[target.type].r && !blocked;
+  if (unit.hold) return { ...base, target: inRange ? target : null, aim: b, inRange, reachable: true, status: 'hold', blocked: inRange ? false : blocked };
   const route = [{ x: u.x, y: u.y }]; let p = { x: u.x, y: u.y }, reachable = true;
   if (!inRange) for (let k = 0; k < 16; k++) {
     const wp = nextWaypoint(p, target, g.rocks, def.r + 1), d = Math.hypot(wp.x - p.x, wp.y - p.y);

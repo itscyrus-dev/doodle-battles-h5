@@ -1,4 +1,5 @@
 // 中英文文案。t(key, params) 取当前语言的句子并替换 {占位符}；缺失时回退到中文，再回退到 key 本身。
+import { MORE } from './i18n-run.mjs';
 const zh = {
   'app.name': '涂鸦小队',
   'app.tagline': '把战术，画出来。',
@@ -26,17 +27,17 @@ const zh = {
   'battle.speed': '切换战斗倍速，不影响结果和星级',
   'battle.zone.yours': '我 方 布 阵 区', 'battle.zone.enemy': '敌 方 阵 地', 'battle.zone.red': '红 方 布 阵 区',
   'battle.paused': '暂停中', 'battle.victory': '胜利！', 'battle.defeat': '全军覆没', 'battle.timeUp': '时间到', 'battle.block': '格挡',
-  'battle.tip.build': '点按或滑动画兵 · 拖动调位置 · 拖回下方回收', 'battle.tip.sandbox': '上半场放红队，下半场放蓝队 · 每队最多 10 人',
-  'battle.tip.eraser': '橡皮：滑动擦掉士兵，墨水会退还', 'battle.sandbox': '自由沙盒', 'battle.sandboxSub': '你的规则，你的战场',
-  'battle.item.pick': '战前选择', 'battle.item.once': '每场一次', 'battle.item.use': '点击使用', 'battle.item.used': '已使用', 'battle.item.active': '{n} 秒',
+  'battle.tip.build': '左键拖动画兵 · 右键从士兵身上拖出行军路线 · 拖回左栏回收', 'battle.tip.sandbox': '左半场放蓝队，右半场放红队 · 每队最多 10 人',
+  'battle.tip.eraser': '橡皮：按住左键划过士兵就能擦掉，墨水会退还', 'battle.sandbox': '自由沙盒', 'battle.sandboxSub': '你的规则，你的战场',
+  'battle.item.pick': '战前选择', 'battle.item.once': '每场一次', 'battle.item.use': '点击使用（R）', 'battle.item.used': '已使用', 'battle.item.active': '{n} 秒',
   'battle.item.target': '点战场上的位置释放', 'battle.item.none': '满血时不消耗', 'battle.quota': '{name}，{cost} 墨水，已放 {count} 名，上限 {limit} 名',
   'battle.unitLocked': '第 {n} 关解锁', 'battle.free': '自由放置', 'battle.storage': '本机存储不可用 · 刷新可能丢失进度',
 
   'err.phase': '开战后不能调整阵容', 'err.invalid': '无效的布阵位置', 'err.bounds': '请放在战场范围内',
-  'err.zone-blue': '请放在下方的蓝色布阵区', 'err.zone-red': '请放在上方的红色布阵区', 'err.rock': '巨石占着这里，换个落点', 'err.pond': '这里是水塘，换个落点',
+  'err.zone-blue': '请放在左侧的蓝色布阵区', 'err.zone-red': '请放在右侧的红色布阵区', 'err.rock': '巨石占着这里，换个落点', 'err.pond': '这里是水塘，换个落点',
   'err.team-full': '全队最多 {n} 人，先回收一名士兵', 'err.type-full': '{name}最多 {n} 名', 'err.ink': '墨水不够，换个兵种或回收士兵', 'err.overlap': '这里已有士兵，稍微拉开一点',
-  'drag.drop': '松手放置 · 拖回下方可回收', 'drag.recycle': '松手回收 · 退还 {n} 墨水', 'drag.recycleFree': '松手回收',
-  'drag.recycled': '已回收，退还 {n} 墨水', 'drag.recycledFree': '已回收', 'drag.back': '{reason}，已退回原位', 'recycle.zone': '⌫ 拖到这里回收 · 退还墨水',
+  'drag.drop': '松手放置 · 拖回左栏可回收', 'drag.recycle': '松手回收 · 退还 {n} 墨水', 'drag.recycleFree': '松手回收',
+  'drag.recycled': '已回收，退还 {n} 墨水', 'drag.recycledFree': '已回收', 'drag.back': '{reason}，已退回原位', 'recycle.zone': '拖到这里回收\n退还墨水',
 
   'preview.title': '{name} · 射程 {range}', 'preview.note': '开战后目标会移动',
   'preview.no-enemy': '先布置敌方，才能预览接敌路线', 'preview.support': '治疗射程内受伤的队友，没有伤员时跟在队友身后',
@@ -72,7 +73,7 @@ const zh = {
 
   'unit.knight.name': '先锋', 'unit.knight.role': '近战突击', 'unit.knight.good': '便宜、跑得快，适合补足前排和近战输出。', 'unit.knight.watch': '生命不高，单独冲进敌阵容易被集火。',
   'unit.guard.name': '护卫', 'unit.guard.role': '抵挡远程', 'unit.guard.good': '站在后排前面挡箭；受到的远程伤害减少 45%。', 'unit.guard.watch': '移动慢，单次伤害不高。',
-  'unit.archer.name': '弓手', 'unit.archer.role': '远程输出', 'unit.archer.good': '留在后排持续射箭；点选可以看射程。', 'unit.archer.watch': '箭会被巨石和路径上的敌人挡住，被近战贴身时很脆弱。',
+  'unit.archer.name': '弓手', 'unit.archer.role': '远程输出', 'unit.archer.good': '留在后排持续射箭；鼠标停在弓手上可以看射程。', 'unit.archer.watch': '箭会被巨石和路径上的敌人挡住，被近战贴身时很脆弱。',
   'unit.bomber.name': '爆破手', 'unit.bomber.role': '范围伤害', 'unit.bomber.good': '对付聚在一起的敌人；炸弹可以越过巨石。', 'unit.bomber.watch': '炸弹投向出手时的位置，分散或移动中的敌人不容易同时命中。',
   'unit.giant.name': '巨人', 'unit.giant.role': '重型前排', 'unit.giant.good': '生命极高的重型前排，适合承伤并推进阵线。', 'unit.giant.watch': '贵、慢，每队最多 1 名，需要后排配合。',
   'unit.lancer.name': '长枪手', 'unit.lancer.role': '突袭后排', 'unit.lancer.good': '跑得最快，会绕过前排直奔敌方后排；助跑后的第一击伤害是平时的 2.4 倍。', 'unit.lancer.watch': '冲得太深容易被围；对面的护卫和巨人能接下它的冲锋。',
@@ -82,7 +83,7 @@ const zh = {
   'item.heal.name': '急救旗', 'item.heal.short': '伤员恢复 30% 生命', 'item.heal.desc': '所有存活的伤员恢复 30% 最大生命。不能复活；全员满血时不会消耗。',
   'item.smoke.name': '烟雾罐', 'item.smoke.short': '4 秒箭矢减伤 65%', 'item.smoke.desc': '4 秒内我方受到的箭矢伤害降低 65%，可以和护卫减伤叠加。不防近战和炸弹。',
   'item.rally.name': '集结号', 'item.rally.short': '5 秒加速接敌与攻击', 'item.rally.desc': '5 秒内我方移动速度 +40%，攻击冷却恢复 +30%。适合接敌或追击。',
-  'item.thunder.name': '落雷符', 'item.thunder.short': '点选位置，范围重击', 'item.thunder.desc': '战斗中点选战场上的一处：片刻后落雷，对范围内所有敌人造成 46 点伤害，无视护卫减伤。',
+  'item.thunder.name': '落雷符', 'item.thunder.short': '选一处落点，范围重击', 'item.thunder.desc': '战斗中在战场上点一处：片刻后落雷，对范围内所有敌人造成 46 点伤害，无视护卫减伤。',
   'item.frost.name': '冰封瓶', 'item.frost.short': '冻住全部敌人 2.6 秒', 'item.frost.desc': '所有敌人被冻住 2.6 秒，不能移动也不能攻击。已经飞出的箭和炸弹不受影响。',
   'item.unlockAt': '通关第 {n} 关后解锁', 'item.equipped': '已装备', 'item.pickTitle': '带上哪件战术道具？', 'item.pickSub': '只带一件，不花墨水。开战后自己决定使用时机，重试会补满。', 'item.recommend': '本关推荐',
 
@@ -122,19 +123,19 @@ const zh = {
   'feedback.record': '在此设备记录试玩过程', 'feedback.summary': '当前保留 {battles} 场结果、{feedback} 条反馈；最多 500 条事件。', 'feedback.export': '导出试玩记录 JSON', 'feedback.clear': '删除本机试玩记录', 'feedback.cleared': '试玩记录已删除，关卡与阵容保留。',
 
   'guide.skip': '收起',
-  'guide.front.title': '1 / 4 · 放两名前排', 'guide.front.text': '把“护卫”拖到蓝色区域靠前的位置，或者点一下虚影。',
+  'guide.front.title': '1 / 4 · 放两名前排', 'guide.front.text': '把“护卫”拖到左侧蓝色区域靠前（靠右）的位置，或者点一下虚影。',
   'guide.rear.title': '2 / 4 · 加两名弓手', 'guide.rear.text': '把两名弓手放在护卫身后，形成前后排配合。',
   'guide.move.title': '3 / 4 · 调整一下位置', 'guide.move.text': '拖动场上任意士兵换个位置；移动不会重复扣墨水。',
-  'guide.start.title': '4 / 4 · 看看你的安排', 'guide.start.text': '还可以用剩下的墨水补兵。准备好就点“开战！”。',
-  'guide.inspect.title': '盾墙阵地 · 先观察', 'guide.inspect.text': '放兵后点一下场上的士兵，可以看到射程和接敌路线。',
+  'guide.start.title': '4 / 4 · 看看你的安排', 'guide.start.text': '还可以用剩下的墨水补兵。准备好就点“开战！”或按空格。',
+  'guide.inspect.title': '盾墙阵地 · 先观察', 'guide.inspect.text': '把鼠标停在场上的士兵身上，可以看到射程和接敌路线。',
   'guide.mix.title': '试试混合编队', 'guide.mix.text': '敌方护卫会减免箭伤。搭配近战兵种，比较不同结果。',
   'guide.wall.title': '看看盾墙怎么被突破', 'guide.wall.text': '开始战斗吧；失败后阵容会保留，每次只调整一部分。',
   'guide.blast.title': '新兵种 · 爆破手', 'guide.blast.text': '敌人聚在中路。加入爆破手，让前排拖住他们。',
-  'guide.item.title': '战前选一件道具', 'guide.item.text': '点右下角的道具格选择。每场只能用一次，带哪件由你决定。',
+  'guide.item.title': '战前选一件道具', 'guide.item.text': '在右侧栏选择道具。每场只能用一次，带哪件由你决定。',
   'guide.area.title': '留意范围伤害', 'guide.area.text': '开战后观察炸弹落点，以及战报里爆破手的输出。',
-  'guide.cover.title': '巨石守卫 · 观察路线', 'guide.cover.text': '点选士兵看绕行路线；弓手被挡住时，把它拖到侧翼。',
+  'guide.cover.title': '巨石守卫 · 观察路线', 'guide.cover.text': '鼠标停在士兵身上看绕行路线；弓手被挡住时，把它拖到侧翼，或者给它画一条路线。',
   'guide.lancer.title': '新兵种 · 长枪手', 'guide.lancer.text': '长枪手会绕过前排直奔敌方后排，助跑后的第一击特别痛。',
-  'guide.thunder.title': '新道具 · 落雷符', 'guide.thunder.text': '先在道具格里换上落雷符。战斗中点道具，再点战场上的位置释放。',
+  'guide.thunder.title': '新道具 · 落雷符', 'guide.thunder.text': '先在右侧栏换上落雷符。战斗中点道具（或按 R），再点战场上的位置释放。',
   'guide.healer.title': '新兵种 · 医师', 'guide.healer.text': '医师会治疗射程内受伤的队友。把它放在前排身后。',
   'guide.mage.title': '新兵种 · 冰法师', 'guide.mage.text': '冰球命中一片区域并让敌人变慢，很适合对付冲锋。',
   'guide.frost.title': '新道具 · 冰封瓶', 'guide.frost.text': '把全部敌人冻住 2.6 秒。留到敌人冲到面前时再用。',
@@ -178,17 +179,17 @@ const en = {
   'battle.speed': 'Toggle battle speed. It does not change the result or the stars.',
   'battle.zone.yours': 'YOUR DEPLOYMENT ZONE', 'battle.zone.enemy': 'ENEMY LINES', 'battle.zone.red': 'RED DEPLOYMENT ZONE',
   'battle.paused': 'Paused', 'battle.victory': 'Victory!', 'battle.defeat': 'Defeated', 'battle.timeUp': 'Time up', 'battle.block': 'BLOCK',
-  'battle.tip.build': 'Tap or swipe to draw units · drag to move · drag down to recycle', 'battle.tip.sandbox': 'Red on the top half, blue on the bottom · up to 10 per team',
-  'battle.tip.eraser': 'Eraser: swipe over units to remove them and refund their ink', 'battle.sandbox': 'Sandbox', 'battle.sandboxSub': 'Your rules, your battle',
-  'battle.item.pick': 'Choose before battle', 'battle.item.once': 'Once per battle', 'battle.item.use': 'Tap to use', 'battle.item.used': 'Used', 'battle.item.active': '{n}s',
-  'battle.item.target': 'Tap a spot on the field to strike', 'battle.item.none': 'Not spent at full health', 'battle.quota': '{name}, {cost} ink, {count} placed, limit {limit}',
+  'battle.tip.build': 'Left-drag to draw units · right-drag from a unit to draw its route · drag back to the left panel to recycle', 'battle.tip.sandbox': 'Blue on the left half, red on the right · up to 10 per team',
+  'battle.tip.eraser': 'Eraser: hold the left button and sweep over units to remove them and refund their ink', 'battle.sandbox': 'Sandbox', 'battle.sandboxSub': 'Your rules, your battle',
+  'battle.item.pick': 'Choose before battle', 'battle.item.once': 'Once per battle', 'battle.item.use': 'Click to use (R)', 'battle.item.used': 'Used', 'battle.item.active': '{n}s',
+  'battle.item.target': 'Click a spot on the field to strike', 'battle.item.none': 'Not spent at full health', 'battle.quota': '{name}, {cost} ink, {count} placed, limit {limit}',
   'battle.unitLocked': 'Unlocks at level {n}', 'battle.free': 'Free', 'battle.storage': 'Local storage is unavailable · progress may be lost on reload',
 
   'err.phase': 'You cannot change the formation after the battle starts', 'err.invalid': 'That is not a valid spot', 'err.bounds': 'Place it inside the field',
-  'err.zone-blue': 'Place it in the blue zone at the bottom', 'err.zone-red': 'Place it in the red zone at the top', 'err.rock': 'A boulder is in the way', 'err.pond': 'That is water — pick another spot',
+  'err.zone-blue': 'Place it in the blue zone on the left', 'err.zone-red': 'Place it in the red zone on the right', 'err.rock': 'A boulder is in the way', 'err.pond': 'That is water — pick another spot',
   'err.team-full': 'A squad holds {n} units at most — recycle one first', 'err.type-full': '{name}: limit {n}', 'err.ink': 'Not enough ink — pick a cheaper unit or recycle one', 'err.overlap': 'Too close to another unit',
   'drag.drop': 'Release to place · drag down to recycle', 'drag.recycle': 'Release to recycle · refund {n} ink', 'drag.recycleFree': 'Release to recycle',
-  'drag.recycled': 'Recycled · {n} ink refunded', 'drag.recycledFree': 'Recycled', 'drag.back': '{reason} — moved back', 'recycle.zone': '⌫ Drag here to recycle · ink refunded',
+  'drag.recycled': 'Recycled · {n} ink refunded', 'drag.recycledFree': 'Recycled', 'drag.back': '{reason} — moved back', 'recycle.zone': 'Drop here to recycle\nink refunded',
 
   'preview.title': '{name} · range {range}', 'preview.note': 'Targets will move once the battle starts',
   'preview.no-enemy': 'Place some enemies to preview a route', 'preview.support': 'Heals injured allies in range and follows the squad when nobody is hurt',
@@ -224,7 +225,7 @@ const en = {
 
   'unit.knight.name': 'Vanguard', 'unit.knight.role': 'Melee fighter', 'unit.knight.good': 'Cheap and quick. Good for filling the front line and adding melee damage.', 'unit.knight.watch': 'Not very sturdy; a lone vanguard gets focused down.',
   'unit.guard.name': 'Guard', 'unit.guard.role': 'Blocks ranged', 'unit.guard.good': 'Stands in front of the back line and takes 45% less ranged damage.', 'unit.guard.watch': 'Slow, and does not hit hard.',
-  'unit.archer.name': 'Archer', 'unit.archer.role': 'Ranged damage', 'unit.archer.good': 'Shoots steadily from the back. Tap a placed archer to see its range.', 'unit.archer.watch': 'Arrows stop at boulders and at the first enemy in the way. Fragile in melee.',
+  'unit.archer.name': 'Archer', 'unit.archer.role': 'Ranged damage', 'unit.archer.good': 'Shoots steadily from the back. Hover over a placed archer to see its range.', 'unit.archer.watch': 'Arrows stop at boulders and at the first enemy in the way. Fragile in melee.',
   'unit.bomber.name': 'Bomber', 'unit.bomber.role': 'Area damage', 'unit.bomber.good': 'Punishes clustered enemies and can lob bombs over boulders.', 'unit.bomber.watch': 'Bombs land where the target stood, so spread-out or moving enemies are hard to catch together.',
   'unit.giant.name': 'Giant', 'unit.giant.role': 'Heavy front line', 'unit.giant.good': 'A huge pool of health for soaking damage and pushing the line forward.', 'unit.giant.watch': 'Expensive and slow, limit one per squad, and needs back-line support.',
   'unit.lancer.name': 'Lancer', 'unit.lancer.role': 'Back-line raider', 'unit.lancer.good': 'The fastest unit. Slips past the front line to hunt the enemy back line; its first hit after a run deals 2.4× damage.', 'unit.lancer.watch': 'Dives deep and can get surrounded. Enemy guards and giants can absorb its charge.',
@@ -234,7 +235,7 @@ const en = {
   'item.heal.name': 'Aid Flag', 'item.heal.short': 'Wounded recover 30% HP', 'item.heal.desc': 'Every living wounded unit recovers 30% of its max HP. Does not revive, and is not spent if everyone is at full health.',
   'item.smoke.name': 'Smoke Pot', 'item.smoke.short': '-65% arrow damage for 4s', 'item.smoke.desc': 'For 4 seconds your squad takes 65% less arrow damage, stacking with guards. Does nothing against melee or bombs.',
   'item.rally.name': 'Rally Horn', 'item.rally.short': '5s of speed and haste', 'item.rally.desc': 'For 5 seconds your squad moves 40% faster and recovers attacks 30% faster. Good for closing in or chasing.',
-  'item.thunder.name': 'Thunder Scroll', 'item.thunder.short': 'Tap a spot to strike', 'item.thunder.desc': 'During battle, tap a spot on the field. A moment later lightning deals 46 damage to every enemy in the area, ignoring guard armour.',
+  'item.thunder.name': 'Thunder Scroll', 'item.thunder.short': 'Pick a spot to strike', 'item.thunder.desc': 'During battle, click a spot on the field. A moment later lightning deals 46 damage to every enemy in the area, ignoring guard armour.',
   'item.frost.name': 'Frost Flask', 'item.frost.short': 'Freeze all enemies 2.6s', 'item.frost.desc': 'Every enemy is frozen for 2.6 seconds and can neither move nor attack. Arrows and bombs already in the air are not affected.',
   'item.unlockAt': 'Unlocks after level {n}', 'item.equipped': 'Equipped', 'item.pickTitle': 'Which item will you bring?', 'item.pickSub': 'Bring one. It costs no ink, you choose when to use it, and it refills on every retry.', 'item.recommend': 'Suggested here',
 
@@ -246,7 +247,7 @@ const en = {
   'skin.blue': 'Royal Blue', 'skin.teal': 'Teal', 'skin.green': 'Meadow Green', 'skin.purple': 'Wisteria', 'skin.pink': 'Blossom', 'skin.gold': 'Gilded',
 
   'hint.title': 'Strategist\'s Hint', 'hint.text': 'Shows a formation that won in testing without using an item ({stars} stars in testing). You only pay once per level.', 'hint.buy': 'Reveal for {n} coins', 'hint.poor': 'Not enough coins ({n} needed)',
-  'hint.apply': 'Place it for me', 'hint.show': 'Show ghosts, I will place them', 'hint.owned': 'Hint unlocked for this level', 'hint.applied': 'Formation placed — you can start the battle', 'hint.ghosts': 'The ghosts are the hint formation: tap one to place it',
+  'hint.apply': 'Place it for me', 'hint.show': 'Show ghosts, I will place them', 'hint.owned': 'Hint unlocked for this level', 'hint.applied': 'Formation placed — you can start the battle', 'hint.ghosts': 'The ghosts are the hint formation: click one to place it',
 
   'daily.title': 'Daily Bounty', 'daily.locked': 'Clear 3 levels to open the daily bounty', 'daily.goal': 'Earn 3 stars on level {n} “{title}” today', 'daily.reward': 'Reward: {n} coins',
   'daily.done': 'Today\'s bounty is done. Come back tomorrow!', 'daily.streak': '{n}-day streak', 'daily.go': 'Take it on', 'daily.reset': 'Refreshes at midnight',
@@ -274,19 +275,19 @@ const en = {
   'feedback.record': 'Record play sessions on this device', 'feedback.summary': '{battles} battle results and {feedback} feedback notes stored; 500 events at most.', 'feedback.export': 'Export play data (JSON)', 'feedback.clear': 'Delete play data on this device', 'feedback.cleared': 'Play data deleted. Levels and formations are kept.',
 
   'guide.skip': 'Hide',
-  'guide.front.title': '1 / 4 · Place two front-liners', 'guide.front.text': 'Drag the Guard into the front of the blue zone, or just tap a ghost.',
+  'guide.front.title': '1 / 4 · Place two front-liners', 'guide.front.text': 'Drag the Guard to the front (right side) of the blue zone, or just click a ghost.',
   'guide.rear.title': '2 / 4 · Add two archers', 'guide.rear.text': 'Put two archers behind the guards so the front protects the back.',
   'guide.move.title': '3 / 4 · Adjust a position', 'guide.move.text': 'Drag any unit to a new spot. Moving never costs extra ink.',
-  'guide.start.title': '4 / 4 · See how it plays', 'guide.start.text': 'Spend leftover ink if you like, then tap “Fight!”.',
-  'guide.inspect.title': 'Shield Wall · look first', 'guide.inspect.text': 'After placing a unit, tap it to see its range and route.',
+  'guide.start.title': '4 / 4 · See how it plays', 'guide.start.text': 'Spend leftover ink if you like, then click “Fight!” or press Space.',
+  'guide.inspect.title': 'Shield Wall · look first', 'guide.inspect.text': 'Hover over a placed unit to see its range and route.',
   'guide.mix.title': 'Try a mixed squad', 'guide.mix.text': 'Enemy guards shrug off arrows. Add melee and compare the result.',
   'guide.wall.title': 'Watch the wall break', 'guide.wall.text': 'Start the battle. If you lose, your formation stays, so change one thing at a time.',
   'guide.blast.title': 'New unit · Bomber', 'guide.blast.text': 'The enemy bunches up in the middle. Add a bomber and let your front line hold them.',
-  'guide.item.title': 'Pick an item', 'guide.item.text': 'Tap the item slot at the bottom right. You can use it once per battle.',
+  'guide.item.title': 'Pick an item', 'guide.item.text': 'Pick an item in the right panel. You can use it once per battle.',
   'guide.area.title': 'Watch the blast', 'guide.area.text': 'See where the bombs land and check the bomber\'s damage in the review.',
-  'guide.cover.title': 'Boulder Guard · check routes', 'guide.cover.text': 'Tap a unit to see how it walks around. If an archer is blocked, drag it to a flank.',
+  'guide.cover.title': 'Boulder Guard · check routes', 'guide.cover.text': 'Hover over a unit to see how it walks around. If an archer is blocked, drag it to a flank or give it a route.',
   'guide.lancer.title': 'New unit · Lancer', 'guide.lancer.text': 'Lancers slip past the front line to hunt the back line, and the first hit after a run hurts.',
-  'guide.thunder.title': 'New item · Thunder Scroll', 'guide.thunder.text': 'Equip it in the item slot. In battle, tap the item and then a spot on the field.',
+  'guide.thunder.title': 'New item · Thunder Scroll', 'guide.thunder.text': 'Equip it in the item slot. In battle, click the item (or press R) and then a spot on the field.',
   'guide.healer.title': 'New unit · Medic', 'guide.healer.text': 'Medics heal wounded allies in range. Keep one behind your front line.',
   'guide.mage.title': 'New unit · Frost Mage', 'guide.mage.text': 'Its orb hits an area and slows enemies, which is great against a charge.',
   'guide.frost.title': 'New item · Frost Flask', 'guide.frost.text': 'Freezes every enemy for 2.6 seconds. Save it for when they reach you.',
@@ -303,6 +304,7 @@ const en = {
   'toast.storage': 'Local storage is unavailable; progress may not be saved', 'toast.welcomeBack': 'Your earlier progress has been restored', 'toast.lang': 'Switched to English'
 };
 
+Object.assign(zh, MORE.zh); Object.assign(en, MORE.en);
 export const STRINGS = { zh, en };
 export const LANGUAGES = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }];
 let current = 'zh';

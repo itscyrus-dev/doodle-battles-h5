@@ -21,7 +21,7 @@ test('草稿整份验证预算、数量和障碍，恢复后与原布阵一致',
  assert.equal(validateDraft(7,[{type:'guard',x:330,y:165,team:0}]),null);
  assert.equal(validateDraft(0,[{type:'giant',x:270,y:140,team:1}]),null);
  assert.equal(validateDraft(0,[{type:'bomber',x:270,y:140,team:0}]),null,'还没解锁的兵种不能出现在存档阵容里');
- const save=normalizeSave({unlocked:0,formations:{0:draftOf(g),9:[]},guides:{0:true,1:'true'},lessonActions:{0:{moved:true,inspected:'yes'}},medals:{0:true}});
+ const save=normalizeSave({v:3,unlocked:0,formations:{0:draftOf(g),9:[]},guides:{0:true,1:'true'},lessonActions:{0:{moved:true,inspected:'yes'}},medals:{0:true}});
  assert.equal(save.formations[0].length,2);assert.equal(save.formations[9],undefined);assert.equal(save.guides[1],undefined);assert.equal(save.medals[0],true);assert.deepEqual(save.lessonActions[0],{moved:true});
 });
 test('挑战依据真实战斗结果，零发射不能获得绕石射击挑战',()=>{
@@ -63,4 +63,14 @@ test('后三章的可选挑战可以用通关样本达成；引导与挑战的�
  for(const spot of Object.values(SPOTLIGHTS))for(const lang of ['zh','en'])for(const part of ['goal','desc'])assert.ok(STRINGS[lang][`spot.${spot.id}.${part}`],`${lang} 缺少 spot.${spot.id}.${part}`);
  for(const level of [0,1,2,5,10,12,15,20,22]){const step=guideStep(new Battle(level));assert.ok(step,`第${level+1}关应有引导`);for(const lang of ['zh','en']){assert.ok(STRINGS[lang][step.title]);assert.ok(STRINGS[lang][step.text]);}}
  assert.equal(guideStep(new Battle(0,true)),null,'沙盒没有引导');
+});
+
+test('竖版存档里的阵容按旋转换算成横版；路线和驻守随草稿一起保存和恢复',()=>{
+ const old=normalizeSave({v:2,unlocked:1,formations:{0:[{type:'guard',x:130,y:365,team:0},{type:'archer',x:110,y:490,team:0}]}});
+ assert.deepEqual(old.formations[0].map(({type,x,y})=>[type,x,y]),[['guard',305,170],['archer',180,150]]);
+ const g=new Battle();g.place('knight',200,300);g.place('archer',120,200);
+ g.setRoute([g.plan[0].pid],[{x:200,y:300},{x:260,y:200},{x:400,y:120}],g.plan[0].pid);g.setHold([g.plan[1].pid],true);
+ const draft=draftOf(g);assert.ok(draft[0].route.length>0);assert.equal(draft[1].hold,true);
+ const back=validateDraft(0,draft);assert.deepEqual(back.map(({pid,...u})=>u),draft);
+ const bad=validateDraft(0,[{type:'knight',x:200,y:300,team:0,route:[{x:'oops'}]}]);assert.equal(bad[0].route,undefined,'坏路线被丢掉，士兵保留');
 });
