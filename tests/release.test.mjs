@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { PLAYTEST_VERSION } from '../src/playtest.mjs';
-import { changelogSection, releaseNotes } from '../release/notes.mjs';
+import { changelogSection, releaseNotes, localizeGenerated } from '../release/notes.mjs';
 
 const root = new URL('..', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
@@ -32,11 +32,20 @@ test('更新记录按小节取词：只取指定版本，不串到下一节；�
   assert.equal(changelogSection(text, '3.0.0'), '');
 });
 
+test('GitHub 自动生成的 PR 列表翻成中文：不留英文套话、不 @ 人，链接都在', () => {
+  const generated = "## What's Changed\n* 整体改版 by @dev in https://github.com/o/r/pull/2\n* 修复 by @dependabot[bot] in https://github.com/o/r/pull/3\n\n## New Contributors\n* @dev made their first contribution in https://github.com/o/r/pull/2\n\n**Full Changelog**: https://github.com/o/r/compare/v1.0.0...v1.1.0\n";
+  const zh = '## 合并的 PR\n* 整体改版：https://github.com/o/r/pull/2\n* 修复：https://github.com/o/r/pull/3\n\n**完整改动：** https://github.com/o/r/compare/v1.0.0...v1.1.0';
+  assert.equal(localizeGenerated(generated), zh);
+  assert.ok(releaseNotes(generated).endsWith(`\n\n${zh}\n`));
+  assert.ok(!releaseNotes().includes('合并的 PR'), '没有自动生成的说明时不加这一节');
+});
+
 test('工作流里用到的脚本和打包文件名都对得上', () => {
   const ci = read('.github/workflows/ci.yml'), release = read('.github/workflows/release.yml');
   for (const script of ['release/build_release.py', 'release/build_playtest.py', 'release/build_web.py', 'release/notes.mjs']) assert.ok(existsSync(new URL(script, root)), script);
   for (const workflow of [ci, release]) { assert.ok(workflow.includes('node --test tests/*.test.mjs')); assert.ok(workflow.includes('python3 release/build_release.py')); }
   assert.ok(release.includes('node release/notes.mjs'));
+  assert.ok(!release.includes('--generate-notes'), 'GitHub 直接生成的说明是英文的，要经过 notes.mjs 翻译');
   assert.ok(release.includes('contents: write'), '发布需要写权限：仓库默认只给工作流只读权限');
   const builder = read('release/build_release.py');
   for (const name of ['draw-clash-web-$VERSION.zip', 'draw-clash-playtest-$VERSION.zip']) {
