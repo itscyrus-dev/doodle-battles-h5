@@ -6,7 +6,7 @@ import { TYPES, W, H, ZONE, MARGIN, TIME_LIMIT } from '../src/data.mjs';
 import { makeEncounter, expectedInk, stepOf, ACTS, ROWS, TEMPLATES, BOSSES } from '../src/encounters.mjs';
 import { makeMap, newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, normalizeRun, abandon, runPayout, nodeOf, isFight, WARBANDS, EVENTS, drawHand, handSize, MIN_DECK, WIN_INK } from '../src/run.mjs';
 import { CARDS, HAND } from '../src/cards.mjs';
-import { RELICS } from '../src/relics.mjs';
+import { STICKERS, STICKER_SLOTS } from '../src/stickers.mjs';
 import { validRoute } from '../src/routes.mjs';
 
 const seeds = [1, 7, 42, 1234, 99991];
@@ -17,11 +17,11 @@ function step(run, pickFight = true) {
   const next = available(run); assert.ok(next.length > 0, '地图上总有路可走');
   const choice = (pickFight && next.find(id => isFight(nodeOf(run, id).kind))) || next[0];
   assert.equal(enter(run, choice), true);
-  if (run.screen === 'battle') { assert.ok(battleOf(run)); finishBattle(run, won()); assert.equal(run.screen, 'reward'); assert.equal(choose(run, 0), true); }
-  else if (run.screen === 'reward') choose(run, 0);
+  if (run.screen === 'battle') { assert.ok(battleOf(run)); finishBattle(run, won()); assert.equal(run.screen, 'reward'); assert.equal(choose(run, 0, 0), true); }
+  else if (run.screen === 'reward') choose(run, 0, 0);
   else if (run.screen === 'shop') leave(run);
   else if (run.screen === 'camp') { camp(run, 'upgrade', run.deck.findIndex(e => !e.up)); leave(run); }
-  else if (run.screen === 'event') resolveEvent(run, eventChoices(run).find(c => c.ok).id);
+  else if (run.screen === 'event') resolveEvent(run, eventChoices(run).find(c => c.ok).id, 0);
   return choice;
 }
 
@@ -67,7 +67,7 @@ test('新开远征：三个编制各有 8 张起始牌和一件遗物；第一�
     const run = newRun({ seed: 3, warband: id });
     assert.equal(run.deck.length, 8); assert.ok(run.deck.every(e => CARDS[e.id] && e.up === false));
     assert.ok(run.deck.some(e => CARDS[e.id].kind === 'tactic') && run.deck.some(e => CARDS[e.id].kind === 'unit'));
-    assert.deepEqual(run.relics, wb.relics); assert.ok(wb.relics.every(r => RELICS[r])); assert.equal(run.hearts, 3); assert.equal(run.ink, 100);
+    assert.deepEqual(run.stickers, wb.stickers); assert.ok(wb.stickers.length === 1 && wb.stickers.every(s => STICKERS[s])); assert.equal(run.snowball, 0); assert.equal(run.hearts, 3); assert.equal(run.ink, 100);
     assert.deepEqual(available(run), makeMap(3, 0).rows[0].map(n => n.id));
   }
   const run = newRun({ seed: 3 }); assert.equal(enter(run, '0-5-0'), false, '不能跳到后面的节点');
@@ -79,8 +79,11 @@ test('进入战斗时抽手牌：同一种子同一节点抽到同样的牌；�
   assert.deepEqual(a.hand, b.hand); assert.equal(a.hand.length, handSize(a)); assert.equal(new Set(a.hand).size, a.hand.length);
   const kinds = a.hand.map(i => CARDS[a.deck[i].id].kind); assert.deepEqual(kinds, [...kinds].sort((x, y) => (x === 'tactic') - (y === 'tactic')));
   const ctx = battleOf(a); assert.equal(ctx.def.budget, a.ink); assert.equal(ctx.hand.length, a.hand.length); assert.ok(ctx.refund.perKill > 0); assert.equal(ctx.refund.start, 0);
-  const loud = newRun({ seed: 11 }); loud.relics.push('warcry'); enter(loud, available(loud)[0]); assert.equal(battleOf(loud).refund.start, 15, '战吼：开战时多 15 墨水');
-  const big = newRun({ seed: 12 }); big.relics.push('scholar'); assert.equal(handSize(big), HAND.size + 1, '兵书：手牌 +1');
+  const loud = newRun({ seed: 11 }); enter(loud, available(loud)[0]); assert.equal(battleOf(loud).refund.start, 0, '开战时没有额外墨水');
+  assert.equal(handSize(newRun({ seed: 12 })), HAND.size);
+  const many = newRun({ seed: 13 }); many.stickers.push('horde'); enter(many, available(many)[0]);
+  const crowd = battleOf(many).hand.filter(c => c.kind === 'unit' && CARDS[c.id].n >= 2);
+  assert.ok(battleOf(many).mods.flags.horde && crowd.every(c => c.n >= 4 && c.kw.includes('crowd')), '人海：小队多 2 人，带上人海关键词');
 });
 
 test('打赢普通战：拿金币、墨水上限 +5、从三张牌里挑一张；输了扣心、保留手牌和阵容重打', () => {
@@ -100,15 +103,15 @@ test('打赢普通战：拿金币、墨水上限 +5、从三张牌里挑一张�
   assert.equal(again.hearts, 0); assert.equal(again.screen, 'over'); assert.equal(again.result, 'defeat'); assert.ok(runPayout(again) > 0);
 });
 
-test('精英给遗物三选一，首领回满心、加墨水并进入下一章；三章打完胜利', () => {
+test('精英给贴纸包三选一，首领回满心、加墨水并进入下一章；三章打完胜利', () => {
   const run = newRun({ seed: 21 });
   let guard = 0;
   while (run.screen !== 'over' && guard++ < 60) {
     const before = run.act, next = available(run), elite = next.find(id => nodeOf(run, id).kind === 'elite');
     if (elite) {
       enter(run, elite); finishBattle(run, won());
-      assert.equal(run.pending.kind, 'elite'); assert.ok(run.pending.options.every(o => o.kind === 'relic' && !run.relics.includes(o.id)));
-      choose(run, 0); continue;
+      assert.equal(run.pending.kind, 'elite'); assert.ok(run.pending.options.every(o => o.kind === 'sticker' && !run.stickers.includes(o.id)));
+      choose(run, 0, 0); continue;
     }
     const id = step(run);
     if (nodeOf({ seed: run.seed, act: before }, id).kind === 'boss') {
@@ -146,10 +149,10 @@ test('营火三选一只能选一次；删牌不会让牌库少于下限；奇�
   const thin = newRun({ seed: 42 }); thin.deck = thin.deck.slice(0, MIN_DECK); thin.screen = 'camp'; thin.pending = { done: false };
   assert.equal(campOptions(thin).find(o => o.id === 'remove').ok, false, `牌库不少于 ${MIN_DECK} 张`);
   for (const id of Object.keys(EVENTS)) {
-    const r = newRun({ seed: 41 }); r.screen = 'event'; r.pending = { event: id, card: id === 'cache' ? 't_frost' : 'outriders', relic: 'flank', index: 1 };
+    const r = newRun({ seed: 41 }); r.screen = 'event'; r.pending = { event: id, card: id === 'cache' ? 't_frost' : 'outriders', sticker: 'lasso', index: 1 };
     const choices = eventChoices(r); assert.ok(choices.length >= 1);
     if (id === 'mercenary') { assert.equal(choices[0].ok, false, '金币不够不能雇佣'); r.coins = 100; assert.equal(resolveEvent(r, 'hire'), true); assert.equal(r.deck.at(-1).id, 'outriders'); assert.equal(r.coins, 60); }
-    else if (id === 'shrine') { assert.equal(resolveEvent(r, 'pray'), true); assert.equal(r.hearts, 2); assert.ok(r.relics.includes('flank')); }
+    else if (id === 'shrine') { assert.equal(resolveEvent(r, 'pray'), true); assert.equal(r.hearts, 2); assert.ok(r.stickers.includes('lasso')); }
     else if (id === 'scribe') { assert.equal(resolveEvent(r, 'train'), true); assert.equal(r.deck[1].up, true); }
     else assert.equal(resolveEvent(r, choices.find(c => c.ok).id), true);
     assert.equal(r.screen, 'map');
@@ -162,7 +165,7 @@ test('存档校验：正常的远征原样恢复，坏数据整局作废，旧�
   assert.deepEqual(back, normalizeRun(back)); assert.equal(back.seed, 51); assert.equal(back.screen, run.screen); assert.deepEqual(back.hand, run.hand);
   assert.equal(normalizeRun(null), null); assert.equal(normalizeRun({ ...run, gen: 1 }), null);
   assert.equal(normalizeRun({ ...run, deck: [{ id: 'dragon', up: false }] }), null); assert.equal(normalizeRun({ ...run, hearts: 9 }), null);
-  assert.equal(normalizeRun({ ...run, at: 'nowhere' }), null); assert.equal(normalizeRun({ ...run, relics: ['thick', 'thick'] }), null);
+  assert.equal(normalizeRun({ ...run, at: 'nowhere' }), null); assert.equal(normalizeRun({ ...run, stickers: ['swift', 'swift'] }), null); assert.equal(normalizeRun({ ...run, stickers: ['nope'] }), null); assert.equal(normalizeRun({ ...run, stickers: [...Object.keys(STICKERS)].slice(0, STICKER_SLOTS + 1) }), null);
   assert.equal(normalizeRun({ ...run, hand: [0, 0] }), null); assert.equal(normalizeRun({ ...run, extra: 9, mulligan: true }).extra, undefined, '0.11.0 存档里加抽、重抽的旧字段直接丢掉');
   if (run.hand) {
     const unit = run.hand.find(i => CARDS[run.deck[i].id].kind === 'unit');
@@ -182,5 +185,5 @@ test('遭遇战能直接交给卡牌模式的战斗：整队放下、打出战�
   for (let i = 0; i < TIME_LIMIT * 60 + 5 && g.phase === 'battle'; i++) g.update(1 / 60);
   assert.ok(['won', 'lost'].includes(g.phase));
   const kills = g.units.filter(u => u.team === 1 && u.hp <= 0).length;
-  assert.equal(g.relicStats.refunded, kills * refund.perKill, '每击倒一名敌人返还墨水'); assert.ok(g.remaining >= left);
+  assert.equal(g.tally.refunded, kills * refund.perKill, '每击倒一名敌人返还墨水'); assert.ok(g.remaining >= left);
 });

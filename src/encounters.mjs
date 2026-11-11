@@ -13,9 +13,9 @@ export const ACTS = 3, ROWS = 6; // 每章 6 层普通节点，第 7 层是首�
 export const expectedInk = step => Math.min(240, 100 + 6 * step);
 export const stepOf = (act, row) => act * (ROWS + 1) + row;
 // 敌军价值 = 预计墨水 × 比例。普通战随层数变难；精英更强；首领战的比例只算护卫，不含首领本人。
-export const RATIO = { battle: [.8, .83, .86, .88, .9, .93], elite: [.9, 1.05, 1.05], boss: [.55, 1, .92] };
+export const RATIO = { battle: [.8, .82, .83, .84, .86, .88], elite: [.84, 1, 1.02], boss: [.5, .92, .88] };
 // 敌军属性强化：每章生命 +25%、伤害 +15%（出战人数有上限，后期主要靠这个变难）；精英战再加生命。
-export const enemyScale = (act, kind) => ({ hp: (1 + act * .18) * (kind === 'elite' ? 1.15 : 1), damage: 1 + act * .1 });
+export const enemyScale = (act, kind) => ({ hp: (1 + act * .08) * (kind === 'elite' ? 1.1 : 1), damage: 1 + act * .05 });
 
 // 各章允许出现的敌方兵种（精英和首领可以提前出现更重的兵种）。
 function allowed(type, act, row, kind) {

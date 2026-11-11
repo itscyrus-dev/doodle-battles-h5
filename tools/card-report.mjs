@@ -2,15 +2,18 @@
 // 统计每章普通战、精英战、首领战的首战胜率，以及整局能走到哪里。只读工具，结果只反映相对难度：
 // 真人会画路线、挑站位，实际会更容易一些。
 //
-// 用法：node tools/card-report.mjs [--runs 40]
+// 用法：node tools/card-report.mjs [--runs 40] [--warband iron] [--give lasso] [--skip-stickers]
+// --give 让每局一开始多贴一张贴纸；--skip-stickers 让机器人一路不拿贴纸（只有编制自带的那张），用来看贴纸带来多少变化。
 import { Battle, TACTICS } from '../src/engine.mjs';
 import { TYPES, H, MARGIN, TIME_LIMIT, starsFor } from '../src/data.mjs';
-import { newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, nodeOf, WARBAND_ORDER, MIN_DECK } from '../src/run.mjs';
+import { newRun, available, enter, battleOf, finishBattle, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, takeFromPack, stickersFull, nodeOf, WARBAND_ORDER, MIN_DECK, PRICES } from '../src/run.mjs';
 import { CARDS, RARITY_WEIGHT, cardStats } from '../src/cards.mjs';
 import { ACTS, rng } from '../src/encounters.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? +process.argv[i + 1] : d; };
 const RUNS = arg('runs', 40);
+const text = k => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : null; };
+const SKIP = process.argv.includes('--skip-stickers'), GIVE = text('give'), ONLY = text('warband');
 const alive = (g, team) => g.units.filter(u => u.team === team && u.hp > 0);
 
 // 布阵：兵牌从贵到便宜依次放，近战一排在前（x≈300），远程一排在后（x≈190），沿纵向均匀分开；剩下的墨水留给战术牌。
@@ -28,13 +31,13 @@ function deploy(run, attempt, rand) {
     const x = back ? 185 : 300;
     for (const dx of [0, -30, 30, -60]) if (!g.placeSquad({ card: c.index, type: c.type, n: c.n, kw: c.kw, ink: c.cost }, x + dx, y)) break;
   }));
-  // 简单的路线：带冲锋、疾行的小队（或有冲锋墨、疾行墨时的近战）画一条直线冲到最近的敌人面前，走完后第一击有加成。
-  // 长枪手本来就会自己去找后排，不另外画。
-  const relics = new Set(run.relics), foes = ctx.def.enemies;
+  // 简单的路线：带冲锋、疾行的小队（或贴着长途奔袭、疾行时的近战）画一条直线冲到最近的敌人面前，走完后第一击有加成。
+  // 长枪手本来就会自己去找后排，不另外画。机器人不会画圈、画交叉，这几张贴纸对它没用。
+  const stickers = new Set(run.stickers), foes = ctx.def.enemies;
   for (const c of placed) {
     const squad = g.plan.filter(u => u.team === 0 && u.card === c.index); if (!squad.length || TYPES[c.type].backline) continue;
     const pids = squad.map(u => u.pid), a = squad[0];
-    if (c.kw.includes('charge') || c.kw.includes('swift') || relics.has('charge') || relics.has('swift')) {
+    if (c.kw.includes('charge') || c.kw.includes('swift') || stickers.has('longhaul') || stickers.has('swift')) {
       const foe = foes.reduce((best, e) => (Math.hypot(e.x - a.x, e.y - a.y) < Math.hypot(best.x - a.x, best.y - a.y) ? e : best)), end = { x: foe.x - 55, y: foe.y };
       g.setRoute(pids, Array.from({ length: 9 }, (_, i) => ({ x: a.x + (end.x - a.x) * i / 8, y: a.y + (end.y - a.y) * i / 8 })), a.pid);
     }
@@ -79,13 +82,17 @@ function visit(run, rand) {
   if (run.screen === 'reward') {
     const o = run.pending.options; let best = 0;
     o.forEach((x, i) => { if (x.kind === 'card' && cardValue(run, x.id) > cardValue(run, o[best].id ?? 'knights')) best = i; });
-    choose(run, best);
+    // 贴纸：拿第一张；贴纸栏满了就换下最早的那张。
+    if (SKIP && o.some(x => x.kind === 'sticker')) choose(run, -1);
+    else if (!choose(run, best, stickersFull(run) ? 0 : null)) choose(run, -1);
   } else if (run.screen === 'shop') {
     const stock = run.pending.stock, at = s => stock.findIndex(x => x.kind === 'service' && x.service === s);
     if (canBuy(run, at('upgrade')) && upgradeTarget(run) >= 0) buy(run, at('upgrade'), upgradeTarget(run));
     if (run.hearts < run.maxHearts) { const h = stock.findIndex(x => x.kind === 'heart'); if (canBuy(run, h)) buy(run, h); }
     const cards = stock.map((s, i) => ({ s, i })).filter(x => x.s.kind === 'card' && canBuy(run, x.i)).sort((a, b) => cardValue(run, b.s.id) - cardValue(run, a.s.id));
     if (cards.length) buy(run, cards[0].i);
+    const pack = stock.findIndex(x => x.kind === 'pack');
+    if (!SKIP && pack >= 0 && run.coins >= PRICES.pack + 30 && canBuy(run, pack) && buy(run, pack)) takeFromPack(run, pack, 0, stickersFull(run) ? 0 : null) || takeFromPack(run, pack, -1);
     if (run.deck.length > 12 && canBuy(run, at('remove')) && removeTarget(run) >= 0) buy(run, at('remove'), removeTarget(run));
     leave(run);
   } else if (run.screen === 'camp') {
@@ -93,8 +100,8 @@ function visit(run, rand) {
     if (ok.rest && run.hearts < run.maxHearts - 0) camp(run, 'rest'); else if (ok.upgrade) camp(run, 'upgrade', upgradeTarget(run));
     leave(run);
   } else if (run.screen === 'event') {
-    const choices = eventChoices(run).filter(c => c.ok), pray = choices.find(c => c.id === 'pray');
-    resolveEvent(run, (pray && run.hearts < 3 ? choices.find(c => c.id !== 'pray') : choices[0])?.id ?? choices[0].id);
+    const choices = eventChoices(run).filter(c => c.ok && !(SKIP && c.id === 'pray')), pray = choices.find(c => c.id === 'pray');
+    resolveEvent(run, (pray && run.hearts < 3 ? choices.find(c => c.id !== 'pray') : choices[0])?.id ?? choices[0].id, stickersFull(run) ? 0 : null);
   }
 }
 
@@ -109,6 +116,7 @@ function pickNode(run, rand) {
 
 function playRun(seed, warband) {
   const run = newRun({ seed, warband }), rand = rng(seed * 13 + 5), log = [];
+  if (GIVE && !run.stickers.includes(GIVE)) run.stickers.push(GIVE);
   for (let guard = 0; guard < 200 && run.screen !== 'over'; guard++) {
     if (run.screen === 'map') { enter(run, pickNode(run, rand)); continue; }
     if (run.screen === 'battle') {
@@ -125,7 +133,7 @@ const pct = (a, b) => (b ? `${Math.round(a / b * 100)}%` : '—').padStart(5);
 console.log(`卡牌远征体检 · 每个编制 ${RUNS} 局 · 机器人会给冲锋型小队画直线路线`);
 const started = Date.now(), all = [];
 console.log('编制       通关   到第2章  到第3章  平均胜仗  结束时牌库');
-for (const warband of WARBAND_ORDER) {
+for (const warband of WARBAND_ORDER.filter(w => !ONLY || w === ONLY)) {
   const results = Array.from({ length: RUNS }, (_, i) => playRun(1000 + i * 7919, warband)); all.push(...results);
   const reach = n => results.filter(x => x.run.act >= n).length;
   console.log(`${warband.padEnd(10)} ${pct(results.filter(x => x.run.result === 'victory').length, RUNS)}   ${pct(reach(1), RUNS)}    ${pct(reach(2), RUNS)}    ${(results.reduce((s, x) => s + x.run.stats.wins, 0) / RUNS).toFixed(1).padStart(5)}     ${(results.reduce((s, x) => s + x.run.deck.length, 0) / RUNS).toFixed(1).padStart(5)} 张`);

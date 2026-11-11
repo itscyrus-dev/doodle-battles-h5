@@ -12,6 +12,7 @@ import { draftOf, applyDraft } from './drafts.mjs';
 import { recordBattle, recordRunBattle, buyHint, HINT_COST, REWARDS } from './meta.mjs';
 import { SOLUTIONS } from './solutions.mjs';
 import { battleOf, finishBattle } from './run.mjs';
+import { STICKERS } from './stickers.mjs';
 import { REFUND } from './cards.mjs';
 import { cardName, kwName, cardText, cardArt } from './card-view.mjs';
 import { LESSONS, lessonCtx } from './tutorial.mjs';
@@ -61,8 +62,10 @@ export function createBattle(app) {
   function relabel() {
     renderer.words = {
       victory: mode === 'sandbox' ? t('result.sandboxWin') : t('battle.victory'), defeat: mode === 'sandbox' ? t('result.sandboxLose') : t('battle.defeat'), timeUp: t('battle.timeUp'),
-      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), raid: t('battle.raid'), outflank: t('battle.outflank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy')
+      paused: t('battle.paused'), block: t('battle.block'), flank: t('battle.flank'), raid: t('battle.raid'), outflank: t('battle.outflank'), yourZone: t('battle.zone.yours'), enemyZone: mode === 'sandbox' ? t('battle.zone.red') : t('battle.zone.enemy'),
+      drop: t('pop.drop'), ambushTag: t('preview.ambush'), loneTag: t('preview.lone')
     };
+    renderer.stickerName = id => t(`sticker.${id}`);
     el('b-back').innerHTML = icon('back'); el('b-back').setAttribute('aria-label', t('common.back'));
     el('b-undo').innerHTML = icon('undo'); el('b-undo').setAttribute('aria-label', t('battle.undo')); el('b-undo').dataset.tipTitle = `${t('battle.undo')} · Ctrl+Z`;
     el('b-clear').innerHTML = icon('trash'); el('b-clear').setAttribute('aria-label', t('battle.clear')); el('b-clear').dataset.tipTitle = t('battle.clear');
@@ -218,7 +221,7 @@ export function createBattle(app) {
   }
   function repaintCards() { for (const card of $$('#roster .card')) paintUnit(card.querySelector('canvas'), card.dataset.type, save().skin, { locked: card.disabled }); }
 
-  // ---------- 右栏：敌情、道具、遗物、操作说明 ----------
+  // ---------- 右栏：敌情、道具、操作说明 ----------
   function buildIntel() {
     if (cards()) { el('b-intel').innerHTML = ''; return; }
     const enemies = mode === 'sandbox' ? [] : g.enemy, counts = UNIT_ORDER.map(type => [type, enemies.filter(u => u.type === type && !u.boss).length]).filter(([, n]) => n);
@@ -273,6 +276,7 @@ export function createBattle(app) {
     el('screen-battle').classList.toggle('card-mode', cards());
     for (const L of LESSONS) el('screen-battle').classList.toggle(`lesson-${L.id}`, tutorial() && ctx.lesson.id === L.id);
     renderer.guidePath = tutorial() ? ctx.lesson.guide || null : null;
+    renderer.stickers = inRun() ? run().stickers.slice() : [];
     placeControls();
     if (campaign()) { save().currentLevel = level; app.persist(); if (level === 0 && !save().guides[0]) selected = 'guard'; }
     el('panel-build').hidden = false; el('panel-fight').hidden = true; el('b-left').classList.remove('locked');
@@ -338,7 +342,7 @@ export function createBattle(app) {
       return { title: t('tutorial.tactics.ready'), text: t('tutorial.tactics.go', { n: g.remaining }), focus: 'start' };
     }
     if (tactic && !used.has(tactic.index)) return g.remaining >= tactic.cost ? { title: t('tutorial.tactics.cast'), text: t('tutorial.tactics.castText'), focus: tactic.index } : null;
-    return g.relicStats.refunded ? { title: t('tutorial.tactics.refund'), text: '' } : null;
+    return g.tally.refunded ? { title: t('tutorial.tactics.refund'), text: '' } : null;
   }
   function updateLesson(build) {
     const step = tutorial() ? lessonStep(build) : null;
@@ -364,7 +368,7 @@ export function createBattle(app) {
     const build = g.phase === 'build', lesson = build ? updateGuide() : (el('coach').hidden = true, null);
     el('b-ink').textContent = mode === 'sandbox' ? '∞' : g.remaining; el('b-inkmax').textContent = mode === 'sandbox' || (cards() && !build) ? '' : `/${g.budget}`;
     el('b-inkpill').classList.toggle('low', mode !== 'sandbox' && build && g.remaining < 10);
-    setHTML('b-status', inRun() ? `${run().relics.map(id => `<span class="relic mini" ${tipAttrs(t(`relic.${id}`), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span>` : '');
+    setHTML('b-status', inRun() ? `${run().stickers.map(id => `<span class="sticker mini tier-${STICKERS[id].tier}" data-sticker-id="${id}" ${tipAttrs(t(`sticker.${id}`), t(`sticker.${id}.desc`))}>${img(`icons/sticker-${id}.webp`)}</span>`).join('')}<span class="hearts" ${tipAttrs(t('run.hearts'))}>${Array.from({ length: run().maxHearts }, (_, i) => img('icons/heart.webp', i < run().hearts ? '' : 'lost')).join('')}</span>` : '');
     if (cards()) { if (!build && armed) disarm(); refreshHand(); }
 
     const list = build ? [...g.plan, ...(mode === 'sandbox' ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
@@ -631,7 +635,7 @@ export function createBattle(app) {
       const result = finishBattle(run(), { won, survivors, deployed, stars: starsFor(g), kills, tactics: used.size, plan: g.plan });
       const achievements = recordRunBattle(save(), g, kind);
       app.persist(); app.announce(achievements);
-      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, cards: playedCards().size, tactics: used.size });
+      app.metrics.record('battle_end', { run: true, kind, outcome: g.phase, seconds: g.elapsed, survivors, routes: g.plan.filter(u => !u.team && u.route).length, cards: playedCards().size, tactics: used.size, stickers: run().stickers.join(',') });
       return { review, survivors, deployed, comparison, won, result, kind, feats, timeout: !won && g.elapsed >= TIME_LIMIT };
     }
     const spotlight = campaign() ? SPOTLIGHTS[g.level] : null, medalNow = !!spotlight?.check(g), hadMedal = !!save().medals[g.level];
@@ -640,12 +644,14 @@ export function createBattle(app) {
     app.metrics.record('battle_end', { level: g.level + 1, sandbox: g.sandbox, outcome: g.phase, seconds: g.elapsed, survivors, stars: summary.stars, spent: g.spent, item: g.selectedItem, speed });
     return { review, survivors, deployed, comparison, won, spotlight, medalNow, hadMedal, summary, timeout: !won && g.elapsed >= TIME_LIMIT };
   }
+  const sayObs = o => t(o.key, { ...o.params, name: o.params.type ? unitName(o.params.type) : undefined });
+  const unitTable = rows => rows.length ? `<table class="units"><thead><tr><th>${esc(t('result.tableUnit'))}</th><th>${esc(t('result.tableDealt'))}</th><th>${esc(t('result.tableTaken'))}</th><th>${esc(t('result.tableAlive'))}</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(unitName(r.type))}</td><td>${r.healed > 0 ? `+${Math.round(r.healed)}` : Math.round(r.dealt)}</td><td>${Math.round(r.taken)}</td><td>${r.alive}/${r.total}</td></tr>`).join('')}</tbody></table>` : '';
   function reviewBlock(review, comparison, open) {
     return `<details class="review" ${open ? 'open' : ''}><summary>${esc(t('result.review'))}</summary>
-      ${review.observations.map(o => `<p>${esc(t(o.key, { ...o.params, name: o.params.type ? unitName(o.params.type) : undefined }))}</p>`).join('')}
+      ${review.observations.map(o => `<p>${esc(sayObs(o))}</p>`).join('')}
       ${comparison ? `<p class="muted">${esc(comparison)}</p>` : ''}
       <p class="tip">${esc(t(review.tip.key, review.tip.params))}</p>
-      ${review.rows.length ? `<table class="units"><thead><tr><th>${esc(t('result.tableUnit'))}</th><th>${esc(t('result.tableDealt'))}</th><th>${esc(t('result.tableTaken'))}</th><th>${esc(t('result.tableAlive'))}</th></tr></thead><tbody>${review.rows.map(r => `<tr><td>${esc(unitName(r.type))}</td><td>${r.healed > 0 ? `+${Math.round(r.healed)}` : Math.round(r.dealt)}</td><td>${Math.round(r.taken)}</td><td>${r.alive}/${r.total}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${unitTable(review.rows)}
     </details>`;
   }
   // 战功：这一场打出来的数字，给“越打越强”的反馈。
@@ -653,30 +659,50 @@ export function createBattle(app) {
     const mine = game.units.filter(u => u.team === 0), mvp = mine.reduce((a, b) => (b.damageDealt > (a?.damageDealt || 0) ? b : a), null);
     return {
       damage: Math.round(mine.reduce((s, u) => s + u.damageDealt, 0)), kills: game.units.filter(u => u.team === 1 && u.hp <= 0).length,
-      flanks: game.relicStats.flanks, charges: game.relicStats.primed + game.stats[0].charges, tactics: game.relicStats.tactics, refunded: game.relicStats.refunded,
-      routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null
+      flanks: game.tally.flanks, charges: game.tally.primed + game.stats[0].charges, tactics: game.tally.tactics, refunded: game.tally.refunded,
+      routes: game.plan.filter(u => u.team === 0 && u.route).length, mvp: mvp && mvp.damageDealt > 0 ? { type: mvp.type, n: Math.round(mvp.damageDealt) } : null,
+      stickers: { ...game.tally.stickers }
     };
   }
-  function featsBlock(f) {
-    const cell = (n, key) => `<div><strong>${n}</strong><small>${esc(t(`feats.${key}`))}</small></div>`;
-    return `<h3 style="margin:12px 0 6px">${esc(t('feats.title'))}</h3><div class="statrow four">${cell(f.damage, 'damage')}${cell(f.kills, 'kills')}${cell(f.charges + f.flanks, 'strikes')}${cell(f.tactics, 'tactics')}</div>
-      ${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}`;
+  // 输了最想知道两件事：为什么输、下次怎么改。挑一条和建议对得上的观察放在建议前面；超时就直接说超时。
+  const TIP_CAUSE = { 'tip.spread': 'obs.explosion', 'tip.frontline': 'obs.backlineDeaths', 'tip.chill': 'obs.chilled' };
+  function lossInsight(review, timeout) {
+    if (timeout) return `<div class="insight"><p class="tip">${esc(t('result.timeoutSub'))}</p></div>`;
+    const why = review.observations.find(o => o.key === TIP_CAUSE[review.tip.key]) || review.observations.find(o => o.key === 'obs.firstLoss');
+    return `<div class="insight">${why ? `<p>${esc(sayObs(why))}</p>` : ''}<p class="tip">${esc(t(review.tip.key, review.tip.params))}</p></div>`;
   }
+  // 详细数据默认收起：全部观察、和上一次的对比、战功数字、每个兵种的表现。
+  function runDetails(review, comparison, f) {
+    const nums = [['damage', f.damage], ['strikes', f.charges + f.flanks], ['tactics', f.tactics]].map(([k, n]) => `${t(`feats.${k}`)} ${n}`).join(' · ');
+    const stuck = Object.entries(f.stickers || {}).map(([id, n]) => `${t(`sticker.${id}`)} ×${n}`).join(' · ');
+    return `<details class="review"><summary>${esc(t('result.details'))}</summary>
+      ${stuck ? `<p>${esc(t('result.stickers', { list: stuck }))}</p>` : ''}
+      ${review.observations.map(o => `<p>${esc(sayObs(o))}</p>`).join('')}
+      ${comparison ? `<p class="muted">${esc(comparison)}</p>` : ''}
+      <p class="muted">${esc(nums)}</p>${f.mvp ? `<p class="muted">${esc(t('feats.mvp', { name: unitName(f.mvp.type), n: f.mvp.n }))}</p>` : ''}
+      ${unitTable(review.rows)}
+    </details>`;
+  }
+  // 远征一战的结算：一句结论、一个框（赢了是战利品，输了是原因和建议）、一个按钮，其余数字收成一行小字。
   function showRunResult() {
-    const { review, survivors, deployed, comparison, won, result, feats } = beat.summary, r = run();
+    const { review, survivors, deployed, comparison, won, result, feats, timeout } = beat.summary, r = run();
     const coin = n => `<b>+${n} ${img('icons/coin.webp')}</b>`;
     const overNow = r.screen === 'over';
     const title = won ? t('run.won.title') : overNow ? t('run.over.defeat') : t('run.lost.title');
-    const sub = won ? t('run.won.sub') : overNow ? t('run.over.defeatSub') : t('run.lost.sub', { n: r.hearts });
+    const sub = won ? t('run.won.sub') : overNow ? t('run.over.defeatSub') : t('run.lost.sub');
+    const hearts = won ? '' : `<span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span>`;
+    const alive = t('result.factAlive', { a: survivors, b: deployed });
+    const facts = [t('result.factTime', { n: g.elapsed.toFixed(1) }), ...(won
+      ? [alive, ...(feats.mvp ? [t('feats.best', { name: unitName(feats.mvp.type) })] : [])]
+      : [t('result.factKills', { a: feats.kills, b: g.units.filter(u => u.team === 1).length }), ...(survivors ? [alive] : [])])];
     const sheet = openSheet({
       className: 'result-sheet', dismissable: false,
-      body: `<div class="result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}
-        <div class="kicker">${esc(titles()[1])}</div><h2 id="sheet-title">${esc(title)}</h2><p class="muted">${esc(sub)}</p>
-        <div class="statrow"><div><strong>${g.elapsed.toFixed(1)}s</strong><small>${esc(t('result.time'))}</small></div><div><strong>${survivors}/${deployed}</strong><small>${esc(t('result.survivors'))}</small></div><div><strong><span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span></strong><small>${esc(t('run.hearts'))}</small></div></div>
-        ${featsBlock(feats)}
-        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.ink ? `<div class="row"><span>${esc(t('reward.ink', { n: result.ink }))}</span><b>+${result.ink} ${img('icons/ink.webp')}</b></div>` : ''}${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : ''}
+      body: `<div class="result run-result">${img(won ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}
+        <div class="kicker">${esc(titles()[1])}</div><h2 id="sheet-title">${esc(title)}</h2><p class="sub">${hearts}<span>${esc(sub)}</span></p>
+        ${won ? `<div class="rewards"><div class="row"><span>${esc(t(`node.${beat.summary.kind}`))}</span>${coin(result.coins)}</div>${result.ink ? `<div class="row"><span>${esc(t('reward.ink', { n: result.ink }))}</span><b>+${result.ink} ${img('icons/ink.webp')}</b></div>` : ''}${result.bounty ? `<div class="row"><span>${esc(t('reward.bounty', { n: result.bounty }))}</span><span></span></div>` : ''}</div>` : lossInsight(review, timeout)}
         <div class="actions">${won ? `<button class="btn btn-gold big block" id="r-go">${esc(t('run.toReward'))} ${icon('next')}</button>` : overNow ? `<button class="btn btn-red big block" id="r-go">${esc(t('run.toOver'))}</button>` : `<button class="btn btn-gold big block" id="r-retry">${esc(t('run.retry'))}</button>`}</div>
-        ${reviewBlock(review, comparison, !won)}</div>`
+        <p class="facts">${esc(facts.join(' · '))}</p>
+        ${runDetails(review, comparison, feats)}</div>`
     });
     if (won) setTimeout(() => audio.sfx('coin'), 700);
     const exit = fn => { closeSheet(true); fn(); };
@@ -750,6 +776,10 @@ export function createBattle(app) {
   // 把模拟里的表现事件变成震屏、震动和音效；只影响表现，不改变战斗。
   function feel(events) {
     const has = name => events.includes(name);
+    // 贴纸生效：顶栏那张贴纸跳一下。
+    const stuck = [...new Set(events.filter(e => e.startsWith('sticker:')).map(e => e.slice(8)))];
+    for (const id of stuck) { const chip = document.querySelector(`#b-status [data-sticker-id="${id}"]`); if (chip) { chip.classList.remove('pop'); void chip.offsetWidth; chip.classList.add('pop'); } }
+    if (stuck.length) audio.sfx('star', 2);
     if (has('thunder')) { renderer.kick(9); buzz([12, 30, 40], true); audio.sfx('thunder'); }
     if (has('boom')) { renderer.kick(6); buzz(22); audio.sfx('boom'); }
     else if (has('slam')) { renderer.kick(2.5); buzz(12); audio.sfx('slam'); }

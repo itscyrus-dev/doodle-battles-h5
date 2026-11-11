@@ -120,7 +120,7 @@ export class FormationInput {
     if (type || (unit && kind === 'unit')) this.select(type || unit.type);
     if (kind === 'paint') { g.beginStroke(); this.renderer.inkTrail.push({ ...point, at: performance.now(), start: true }); this.paint(point); }
     if (kind === 'erase') { g.beginStroke(); this.erase(point); }
-    if (kind === 'route' || kind === 'lasso') this.renderer.sketch = { kind, points: this.gesture.points };
+    if (kind === 'route' || kind === 'lasso') this.renderer.sketch = { kind, points: this.gesture.points, card: unit?.card };
     this.onChange(unit ? 'inspect' : null, unit?.team, { type: unit?.type });
   }
   paint(p) {

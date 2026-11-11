@@ -60,7 +60,8 @@ pick "$C/map_run_canyon/map_run_canyon_2.png" assets/map/run-canyon.webp 1400x 7
 pick "$C/map_run_snow/map_run_snow_2.png" assets/map/run-snow.webp 1400x 76
 for k in battle elite boss camp shop event; do sprite "$IN/node_$k.png" "assets/icons/node-$k.webp" 160; done
 sprite "$IN/node_heart.png" assets/icons/heart.webp 128
-for r in swift charge flank anchor thick sharp thrift squad drum bleed spring echo bounty longbow fervor pact horde warcry tactician scholar; do sprite "$IN/relic_$r.png" "assets/icons/relic-$r.webp" 160; done
+# 远征贴纸和贴纸包：每张从两张候选里挑的那一张（id:候选编号）。
+for s in longhaul:1 lasso:1 cross:1 trail:1 swift:1 ambush:2 lone:1 horde:1 snowball:1 dice:1 echo:2 savings:1 pack:1; do sprite "$C/sticker_${s%%:*}/sticker_${s%%:*}_${s##*:}.png" "assets/icons/sticker-${s%%:*}.webp" 160; done
 # 卡牌：战术牌图标和战墨图标。
 for t in reinforce assault shield; do sprite "$IN/tactic_$t.png" "assets/icons/tactic-$t.webp" 160; done
 sprite "$IN/icon_momentum.png" assets/icons/momentum.webp 128

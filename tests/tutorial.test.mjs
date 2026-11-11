@@ -53,5 +53,5 @@ test('第三课：留下的墨水开战后打落雷，砸中一群敌人；击�
     const foes = g.units.filter(u => u.team === 1 && u.hp > 0), best = foes.map(u => ({ u, n: foes.filter(v => Math.hypot(u.x - v.x, u.y - v.y) <= TACTICS.thunder.radius).length })).sort((a, b) => b.n - a.n)[0];
     if (best && best.n >= 3) cast = g.cast(thunder.effect, { cost: thunder.cost, point: { x: best.u.x, y: best.u.y } });
   });
-  assert.ok(cast && result.won && result.alive >= 3, JSON.stringify(result)); assert.ok(g.relicStats.refunded > 0);
+  assert.ok(cast && result.won && result.alive >= 3, JSON.stringify(result)); assert.ok(g.tally.refunded > 0);
 });

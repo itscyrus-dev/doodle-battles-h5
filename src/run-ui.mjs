@@ -1,9 +1,9 @@
 // 远征界面：开局选编制、分岔地图、战利品、军需官、营火、奇遇和结算。规则都在 run.mjs，这里只负责显示和点击。
 import { CHAPTERS } from './data.mjs';
-import { newRun, available, enter, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, abandon, runPayout, mapOf, nodeOf, perksOf, handSize, WARBANDS, WARBAND_ORDER, CAMP, MIN_DECK } from './run.mjs';
+import { newRun, available, enter, choose, leave, buy, canBuy, camp, campOptions, eventChoices, resolveEvent, abandon, runPayout, mapOf, nodeOf, perksOf, handSize, takeFromPack, sellSticker, sellValue, stickersFull, WARBANDS, WARBAND_ORDER, CAMP, MIN_DECK } from './run.mjs';
 import { CARDS, CARD_ORDER } from './cards.mjs';
 import { cardName, cardFace } from './card-view.mjs';
-import { RELICS } from './relics.mjs';
+import { STICKERS, STICKER_SLOTS, snowballBonus } from './stickers.mjs';
 import { ROWS, ACT_THEMES } from './encounters.mjs';
 import { recordRunEnd } from './meta.mjs';
 import { paintUnit } from './render.mjs';
@@ -12,7 +12,10 @@ import { t, pick } from './i18n.mjs';
 import * as audio from './audio.mjs';
 import { $, $$, esc, icon, img, toast, openSheet, closeSheet, tipAttrs } from './ui.mjs';
 
-const unitName = type => t(`unit.${type}.name`), relicName = id => t(`relic.${id}`);
+const unitName = type => t(`unit.${type}.name`), stickerName = id => t(`sticker.${id}`), tierOf = id => STICKERS[id].tier;
+// 贴纸的说明；滚雪球附上这局已经攒下的加成。
+const stickerDesc = (id, r = null) => t(`sticker.${id}.desc`) + (id === 'snowball' && r?.snowball ? ` ${t('sticker.snow', { n: Math.round(snowballBonus(r.snowball) * 100) })}` : '');
+const stickerChip = (id, r, attrs = '') => `<span class="sticker tier-${tierOf(id)}" ${attrs} ${tipAttrs(stickerName(id), stickerDesc(id, r))}>${img(`icons/sticker-${id}.webp`)}</span>`;
 const NODE_ICON = { battle: 'node-battle', elite: 'node-elite', boss: 'node-boss', event: 'node-event', shop: 'node-shop', camp: 'node-camp', treasure: 'chest' };
 const nodeArt = kind => NODE_ICON[kind] === 'chest' ? 'icons/chest.webp' : `icons/${NODE_ICON[kind]}.webp`;
 const hearts = r => `<span class="hearts">${Array.from({ length: r.maxHearts }, (_, i) => img('icons/heart.webp', i < r.hearts ? '' : 'lost')).join('')}</span>`;
@@ -21,7 +24,8 @@ const hearts = r => `<span class="hearts">${Array.from({ length: r.maxHearts }, 
 export function optionView(o, perks = {}) {
   if (o.kind === 'card') { const { c, html } = cardFace(o, perks); return { kind: '', title: cardName(o.id, !!o.up), desc: '', art: '', face: html, cls: c.kind === 'tactic' ? 'tactic-card' : '', rare: CARDS[o.id].rarity === 'rare' }; }
   if (o.kind === 'service') return { kind: t('shop.service'), title: t(`shop.${o.service}`), desc: t(`shop.${o.service}.desc`), art: img(o.service === 'remove' ? 'icons/item-smoke.webp' : 'icons/star.webp') };
-  if (o.kind === 'relic') return { kind: `${t('opt.kind.relic')} · ${t(`relic.${RELICS[o.id].tier}`)}`, title: relicName(o.id), desc: t(`relic.${o.id}.desc`), art: img(`icons/relic-${o.id}.webp`), rare: RELICS[o.id].tier === 'rare' };
+  if (o.kind === 'sticker') return { kind: `${t('opt.kind.sticker')} · ${t(`sticker.tier.${tierOf(o.id)}`)}`, title: stickerName(o.id), desc: t(`sticker.${o.id}.desc`), art: img(`icons/sticker-${o.id}.webp`), cls: `sticker-pick tier-${tierOf(o.id)}` };
+  if (o.kind === 'pack') return { kind: t('opt.kind.pack'), title: t('pack.title'), desc: t('pack.desc'), art: img('icons/sticker-pack.webp') };
   if (o.kind === 'ink') return { kind: t('opt.kind.ink'), title: t('opt.ink', { n: o.n }), desc: t('opt.ink.desc'), art: img('icons/ink.webp') };
   if (o.kind === 'coins') return { kind: t('opt.kind.coins'), title: t('opt.coins', { n: o.n }), desc: t('opt.coins.desc'), art: img('icons/coin.webp') };
   return { kind: t('opt.kind.heart'), title: t('opt.heart', { n: o.n }), desc: t('opt.heart.desc'), art: img('icons/heart.webp') };
@@ -62,7 +66,7 @@ export function createRunUI(app) {
             <b>${esc(t(`warband.${id}`))}</b><div class="units">${[...new Set(w.deck.filter(c => CARDS[c].kind === 'unit').map(c => CARDS[c].type))].map(type => `<canvas width="108" height="108" data-unit="${type}" ${tipAttrs(unitName(type), t(`unit.${type}.role`))}></canvas>`).join('')}</div>
             <p>${esc(t(`warband.${id}.desc`))}</p>
             <div class="deck-list">${deckChips(w.deck.map(c => ({ id: c, up: false })))}</div>
-            <div class="gear">${w.relics.map(r => `<span ${tipAttrs(relicName(r), t(`relic.${r}.desc`))}>${img(`icons/relic-${r}.webp`)}</span>${esc(relicName(r))}`).join('')}</div></button>`; }).join('')}</div>
+            <div class="gear">${w.stickers.map(s => `${stickerChip(s)}${esc(stickerName(s))}`).join('')}</div></button>`; }).join('')}</div>
           <div class="actions"><button class="btn btn-gold big block" id="run-start">${esc(t('run.start'))} ${icon('next')}</button></div>`
       });
       paintArt(sheet, skin());
@@ -101,7 +105,7 @@ export function createRunUI(app) {
     return `<div><h4>${esc(t('run.hearts'))}</h4>${hearts(r)}</div>
       <div><h4>${esc(t('deck.title'))} · ${esc(t('deck.count', { n: r.deck.length }))}</h4><div class="deck-list">${deckChips(r.deck)}</div>
         <button class="btn btn-paper small block" id="run-deck" style="margin-top:8px">${esc(t('deck.view'))}</button></div>
-      <div><h4>${esc(t('run.relics'))}</h4>${r.relics.length ? `<div class="relic-row">${r.relics.map(id => `<span class="relic" ${tipAttrs(relicName(id), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}</div>` : `<p class="muted">${esc(t('run.noRelics'))}</p>`}</div>
+      <div><h4>${esc(t('run.stickers'))} · ${esc(t('sticker.slots', { n: r.stickers.length, max: STICKER_SLOTS }))}</h4>${r.stickers.length ? `<div class="sticker-row">${r.stickers.map((id, i) => stickerChip(id, r, `role="button" tabindex="0" data-sticker="${i}"`)).join('')}</div>` : `<p class="muted">${esc(t('run.noStickers'))}</p>`}</div>
       <div class="actions"><p class="muted">${esc(t('run.saved'))}</p><button class="btn btn-paper small block" id="run-abandon">${esc(t('run.abandon'))}</button></div>`;
   }
   // 牌库一览，兵牌在前、战术牌在后。不给 pick 时只看不点；给了 pick 就是按钮：filter 决定哪些牌能点，preview 显示升级后的样子。
@@ -143,7 +147,42 @@ export function createRunUI(app) {
     $('#run-deck').onclick = openDeck;
     for (const b of $$('.rnode', screen)) b.onclick = () => b.classList.contains('open') ? pickNode(b.dataset.node) : refuse(b);
     const hint = $('#run-hint'); if (hint) hint.onclick = () => { flashOpen(); audio.sfx('tap'); };
+    for (const b of $$('[data-sticker]', screen)) b.onclick = () => openSticker(+b.dataset.sticker);
   }
+  // 点开一张贴纸：大图和说明；在地图上可以卖掉，腾出位置。
+  function openSticker(i) {
+    const r = run(), id = r.stickers[i]; if (!id) return;
+    const canSell = r.screen === 'map', gain = sellValue(id);
+    const sheet = openSheet({
+      kicker: esc(`${t('opt.kind.sticker')} · ${t(`sticker.tier.${tierOf(id)}`)}`), title: esc(stickerName(id)),
+      body: `<div class="sticker-detail tier-${tierOf(id)}">${img(`icons/sticker-${id}.webp`)}<p>${esc(stickerDesc(id, r))}</p></div>
+        <div class="actions">${canSell ? `<button class="btn btn-paper block" id="sticker-sell">${esc(t('sticker.sell', { n: gain }))}</button>` : `<p class="muted">${esc(t('sticker.sellWhere'))}</p>`}</div>`
+    });
+    if (canSell) $('#sticker-sell', sheet).onclick = () => {
+      if (!sellSticker(r, i)) return;
+      app.persist(); app.metrics.record('sticker_sell', { sticker: id }); audio.sfx('coin');
+      toast(t('sticker.sold', { name: stickerName(id), n: gain })); closeSheet(true); render();
+    };
+  }
+  // 贴纸栏满了：挑一张换下（按卖价折成金币），或者不要新的。done(位置)、back() 由调用的地方决定接下来去哪。
+  function openReplace(newId, done, back) {
+    const r = run();
+    const sheet = openSheet({
+      className: 'wide', dismissable: false, kicker: esc(t('sticker.full', { max: STICKER_SLOTS })), title: esc(t('sticker.replaceTitle')),
+      body: `<p class="muted">${esc(t('sticker.replaceNote', { name: stickerName(newId) }))}</p>
+        <div class="picks sticker-swap">${r.stickers.map((id, i) => { const v = optionView({ kind: 'sticker', id }); return `<button class="pick ${v.cls}" data-swap="${i}">${optionBody(v)}<span class="price">+${sellValue(id)} ${img('icons/coin.webp')}</span></button>`; }).join('')}</div>
+        <div class="actions"><button class="btn btn-paper" id="swap-back">${esc(t('sticker.keepOld'))}</button></div>`
+    });
+    for (const b of $$('[data-swap]', sheet)) b.onclick = () => done(+b.dataset.swap);
+    $('#swap-back', sheet).onclick = back;
+  }
+  // 贴纸包翻开的样子：几张贴纸依次翻过来，传说会发光。已经有的那张不能再选。
+  const packPicks = (r, ids) => `<div class="picks pack-reveal" style="${ids.length === 2 ? 'grid-template-columns:repeat(2,1fr)' : ''}">${ids.map((id, k) => {
+    const v = optionView({ kind: 'sticker', id }), owned = r.stickers.includes(id);
+    return `<button class="pick ${v.cls}" data-pick="${k}" style="--i:${k}" ${owned ? 'disabled' : ''}>${optionBody(v)}${owned ? `<small class="why">${esc(t('shop.owned'))}</small>` : ''}</button>`;
+  }).join('')}</div>`;
+  // 贴上一张新贴纸后的提示：满了换下一张时说明卖了多少金币。
+  const stuck = (id, gain) => { toast(gain ? t('sticker.swapped', { name: stickerName(id), n: gain }) : t('sticker.got', { name: stickerName(id) }), 2400); audio.sfx('unlock'); };
   // 让现在能去的节点快速闪几下，告诉玩家该点哪里。
   let flashTimer = 0;
   function flashOpen() {
@@ -176,30 +215,39 @@ export function createRunUI(app) {
   const optionBody = v => v.face || `<span class="kind">${esc(v.kind)}</span>${v.art}<b>${esc(v.title)}</b><small>${esc(v.desc)}</small>`;
   function showReward() {
     const r = run(), p = r.pending, perks = perksOf(r), cards = p.options.some(o => o.kind === 'card'), two = p.options.length === 2;
+    const pack = p.options.length > 0 && p.options.every(o => o.kind === 'sticker');
     const title = { spoils: t('reward.spoils'), elite: t('reward.elite'), boss: t('reward.boss'), treasure: t('reward.treasure') }[p.kind] || t('reward.spoils');
-    const rows = (p.coins ? `<div class="row"><span>${esc(t('run.coins'))}${p.bounty ? ` · ${esc(t('reward.bounty', { n: p.bounty }))}` : ''}</span><b>+${p.coins} ${img('icons/coin.webp')}</b></div>` : '')
+    const rows = (p.coins ? `<div class="row"><span>${esc(t('run.coins'))}</span><b>+${p.coins} ${img('icons/coin.webp')}</b></div>` : '')
       + (p.ink ? `<div class="row"><span>${esc(t('reward.ink'))}</span><b>+${p.ink} ${img('icons/ink.webp')}</b></div>` : '');
+    const picks = pack ? packPicks(r, p.options.map(o => o.id))
+      : `<div class="picks" style="${two ? 'grid-template-columns:repeat(2,1fr)' : ''}">${p.options.map((o, i) => { const v = optionView(o, perks); return `<button class="pick ${v.cls || ''} ${v.rare ? 'rare' : ''}" data-pick="${i}">${optionBody(v)}</button>`; }).join('')}</div>`;
     const sheet = openSheet({
       className: 'wide', dismissable: false, kicker: esc(`${t('run.act', { n: r.act + 1 })} · ${chapterName(r.act)}`), title: esc(title),
       body: `${rows ? `<div class="rewards">${rows}</div>` : ''}
-        ${p.kind === 'boss' ? `<p class="muted">${esc(t('reward.bossBonus'))}</p>` : ''}<p class="muted">${esc(t(cards ? 'reward.pickCard' : 'reward.pickOne'))}</p>
-        <div class="picks" style="${two ? 'grid-template-columns:repeat(2,1fr)' : ''}">${p.options.map((o, i) => { const v = optionView(o, perks); return `<button class="pick ${v.cls || ''} ${v.rare ? 'rare' : ''}" data-pick="${i}">${optionBody(v)}</button>`; }).join('')}</div>
-        <div class="actions"><button class="text-link" id="reward-skip">${esc(t(cards ? 'reward.skipCard' : 'reward.skip'))}</button></div>`
+        ${p.kind === 'boss' ? `<p class="muted">${esc(t('reward.bossBonus'))}</p>` : ''}<p class="muted">${esc(t(pack ? 'pack.pick' : cards ? 'reward.pickCard' : 'reward.pickOne'))}</p>
+        ${picks}
+        <div class="actions"><button class="text-link" id="reward-skip">${esc(t(pack ? 'pack.skip' : cards ? 'reward.skipCard' : 'reward.skip'))}</button></div>`
     });
     paintArt(sheet, skin());
     if (p.coins) audio.sfx('coin');
     for (const b of $$('[data-pick]', sheet)) b.onclick = () => {
-      const o = r.pending.options[+b.dataset.pick];
-      choose(r, +b.dataset.pick); app.persist(); closeSheet(true);
-      toast(t(o.kind === 'card' ? 'toast.added' : 'toast.got', { name: optionView(o).title })); audio.sfx(o.kind === 'relic' ? 'unlock' : 'coin');
-      show();
+      const i = +b.dataset.pick, o = r.pending.options[i];
+      const finish = replace => {
+        const before = r.coins;
+        if (!choose(r, i, replace)) return;
+        app.persist(); closeSheet(true);
+        if (o.kind === 'sticker') { stuck(o.id, r.coins - before); app.metrics.record('sticker_pick', { sticker: o.id, kind: p.kind }); }
+        else { toast(t(o.kind === 'card' ? 'toast.added' : 'toast.got', { name: optionView(o).title })); audio.sfx('coin'); }
+        show();
+      };
+      if (o.kind === 'sticker' && stickersFull(r)) openReplace(o.id, finish, showReward); else finish(null);
     };
     $('#reward-skip', sheet).onclick = () => { choose(r, -1); app.persist(); closeSheet(true); show(); };
   }
   function shopBlocked(r, s) {
+    if (s.kind === 'pack' && s.sold && !s.taken) return '';
     if (s.sold) return t('shop.sold');
     if (s.kind === 'heart' && r.hearts >= r.maxHearts) return t('shop.full');
-    if (s.kind === 'relic' && r.relics.includes(s.id)) return t('shop.owned');
     if (s.kind === 'service' && s.service === 'remove' && r.deck.length <= MIN_DECK) return t('shop.minDeck', { n: MIN_DECK });
     if (s.kind === 'service' && s.service === 'upgrade' && r.deck.every(e => e.up)) return t('shop.allUp');
     return r.coins < s.price ? t('shop.poor') : '';
@@ -207,8 +255,9 @@ export function createRunUI(app) {
   function showShop() {
     const r = run(), perks = perksOf(r), stock = r.pending.stock.map((s, i) => ({ s, i }));
     const ware = ({ s, i }) => {
-      const v = optionView(s, perks), blocked = shopBlocked(r, s);
-      return `<button class="pick ${v.cls || ''} ${s.sold ? 'sold' : ''} ${v.rare ? 'rare' : ''}" data-buy="${i}" ${canBuy(r, i) ? '' : 'disabled'} ${v.face ? '' : tipAttrs(v.title, v.desc)}>${optionBody(v)}<span class="price">${s.sold ? esc(blocked) : `${img('icons/coin.webp')}${s.price}`}</span>${blocked && !s.sold ? `<small class="why">${esc(blocked)}</small>` : ''}</button>`;
+      const v = optionView(s, perks), blocked = shopBlocked(r, s), unopened = s.kind === 'pack' && s.sold && !s.taken;
+      const price = unopened ? esc(t('pack.open')) : s.sold ? esc(blocked) : `${img('icons/coin.webp')}${s.price}`;
+      return `<button class="pick ${v.cls || ''} ${s.sold && !unopened ? 'sold' : ''} ${unopened ? 'unopened' : ''} ${v.rare ? 'rare' : ''}" data-buy="${i}" ${canBuy(r, i) || unopened ? '' : 'disabled'} ${v.face ? '' : tipAttrs(v.title, v.desc)}>${optionBody(v)}<span class="price">${price}</span>${blocked && !s.sold ? `<small class="why">${esc(blocked)}</small>` : ''}</button>`;
     };
     const sheet = openSheet({
       className: 'wide full', dismissable: false, title: `${img(nodeArt('shop'), 'coin-inline')} ${esc(t('shop.title'))}`,
@@ -221,9 +270,29 @@ export function createRunUI(app) {
     for (const b of $$('[data-buy]', sheet)) b.onclick = () => {
       const i = +b.dataset.buy, s = r.pending.stock[i];
       if (s.kind === 'service') { shopService(i, s); return; }
+      if (s.kind === 'pack') { if (!s.sold && !buy(r, i)) return; app.persist(); audio.sfx('coin'); render(); openPack(i); return; }
       if (buy(r, i)) { app.persist(); audio.sfx('coin'); toast(t(s.kind === 'card' ? 'toast.added' : 'toast.bought', { name: optionView(s).title })); showShop(); render(); }
     };
     $('#shop-leave', sheet).onclick = () => { leave(r); app.persist(); closeSheet(true); show(); };
+  }
+  // 军需官的贴纸包：买下后翻开挑一张；贴纸栏满了先挑一张换下。点“都不要”也算开过了。
+  function openPack(i) {
+    const r = run(), s = r.pending.stock[i];
+    const sheet = openSheet({
+      className: 'wide', dismissable: false, title: `${img('icons/sticker-pack.webp', 'coin-inline')} ${esc(t('pack.title'))}`,
+      body: `<p class="muted">${esc(t('pack.pick'))}</p>${packPicks(r, s.contents)}
+        <div class="actions"><button class="text-link" id="pack-skip">${esc(t('pack.skip'))}</button></div>`
+    });
+    for (const b of $$('[data-pick]', sheet)) b.onclick = () => {
+      const k = +b.dataset.pick, id = s.contents[k];
+      const finish = replace => {
+        const before = r.coins;
+        if (!takeFromPack(r, i, k, replace)) return;
+        app.persist(); stuck(id, r.coins - before); app.metrics.record('sticker_pick', { sticker: id, kind: 'shop' }); render(); showShop();
+      };
+      if (stickersFull(r)) openReplace(id, finish, () => openPack(i)); else finish(null);
+    };
+    $('#pack-skip', sheet).onclick = () => { takeFromPack(r, i, -1); app.persist(); showShop(); };
   }
   // 军需官的删牌和升级：先挑一张牌再付钱；点返回就不花钱。
   function shopService(i, s) {
@@ -255,7 +324,7 @@ export function createRunUI(app) {
   const eventTarget = r => (r.pending.index !== undefined ? r.deck[r.pending.index] || null : null);
   function eventLabel(r, id) {
     const p = r.pending, target = eventTarget(r);
-    return t(`event.${p.event}.${id}`, { name: p.card ? cardName(p.card) : target ? cardName(target.id) : '', relic: p.relic ? relicName(p.relic) : '' });
+    return t(`event.${p.event}.${id}`, { name: p.card ? cardName(p.card) : target ? cardName(target.id) : '', sticker: p.sticker ? stickerName(p.sticker) : '' });
   }
   function showEvent() {
     const r = run(), p = r.pending, target = eventTarget(r);
@@ -263,14 +332,20 @@ export function createRunUI(app) {
     const sheet = openSheet({
       dismissable: false, kicker: esc(t('node.event')), title: esc(t(`event.${p.event}`)),
       body: `${img(nodeArt('event'), 'event-art')}<p>${esc(t(`event.${p.event}.text`))}</p>
-        ${p.relic ? `<div class="option" style="margin-top:10px" ${tipAttrs(relicName(p.relic), t(`relic.${p.relic}.desc`))}>${img(`icons/relic-${p.relic}.webp`)}<span><b>${esc(relicName(p.relic))}</b><small>${esc(t(`relic.${p.relic}.desc`))}</small></span></div>` : ''}
+        ${p.sticker ? `<div class="option sticker-option tier-${tierOf(p.sticker)}" style="margin-top:10px">${img(`icons/sticker-${p.sticker}.webp`)}<span><b>${esc(stickerName(p.sticker))} · ${esc(t(`sticker.tier.${tierOf(p.sticker)}`))}</b><small>${esc(t(`sticker.${p.sticker}.desc`))}</small></span></div>` : ''}
         ${face ? `<div class="event-card"><div class="pick ${face.c.kind === 'tactic' ? 'tactic-card' : ''} ${shown.up ? 'up' : ''}">${face.html}</div></div>` : ''}
         <div class="actions">${eventChoices(r).map(c => `<button class="btn ${c.ok ? 'btn-gold' : 'btn-paper'} block" data-choice="${c.id}" ${c.ok ? '' : 'disabled'}>${esc(eventLabel(r, c.id))}</button>`).join('')}</div>`
     });
     paintArt(sheet, skin());
     for (const b of $$('[data-choice]', sheet)) b.onclick = () => {
-      const label = eventLabel(r, b.dataset.choice);
-      if (resolveEvent(r, b.dataset.choice)) { app.persist(); closeSheet(true); audio.sfx('unlock'); toast(label, 2400); show(); }
+      const id = b.dataset.choice, label = eventLabel(r, id), sticker = p.event === 'shrine' && id === 'pray' ? p.sticker : null;
+      const finish = replace => {
+        if (!resolveEvent(r, id, replace)) return;
+        app.persist(); closeSheet(true); audio.sfx('unlock'); toast(label, 2400);
+        if (sticker) app.metrics.record('sticker_pick', { sticker, kind: 'event' });
+        show();
+      };
+      if (sticker && stickersFull(r)) openReplace(sticker, finish, showEvent); else finish(null);
     };
   }
   // 远征结束：把带回的金币记进主线，然后清掉这局；结算画面用一份快照显示。
@@ -287,7 +362,7 @@ export function createRunUI(app) {
       body: `<div class="result">${img(key === 'victory' ? 'ui/victory.webp' : 'ui/defeat.webp', 'emblem')}<div class="kicker">${esc(t('run.title'))} · ${esc(t(`warband.${r.warband}`))}</div>
         <h2 id="sheet-title">${esc(t(`run.over.${key}`))}</h2><p class="muted">${esc(t(`run.over.${key}Sub`))}</p>
         <div class="statrow four"><div><strong>${r.act + 1}</strong><small>${esc(t('run.stat.acts'))}</small></div><div><strong>${r.stats.nodes}</strong><small>${esc(t('run.stat.nodes'))}</small></div><div><strong>${r.stats.wins}</strong><small>${esc(t('run.stat.wins'))}</small></div><div><strong>${r.stats.kills}</strong><small>${esc(t('run.stat.kills'))}</small></div></div>
-        ${r.relics.length ? `<div class="relic-row" style="justify-content:center">${r.relics.map(id => `<span class="relic" ${tipAttrs(relicName(id), t(`relic.${id}.desc`))}>${img(`icons/relic-${id}.webp`)}</span>`).join('')}</div>` : ''}
+        ${r.stickers.length ? `<div class="sticker-row" style="justify-content:center">${r.stickers.map(id => stickerChip(id, r)).join('')}</div>` : ''}
         <div class="rewards"><div class="row"><span>${esc(t('run.payout', { n: payout }))}</span><b>+${payout} ${img('icons/coin.webp')}</b></div></div>
         <p class="muted">${esc(t('run.records', { runs: app.save.runStats.runs, wins: app.save.runStats.wins }))}</p>
         <div class="actions two"><button class="btn btn-gold big" id="over-again">${esc(t('run.again'))}</button><button class="btn btn-paper big" id="over-home">${esc(t('run.toHome'))}</button></div></div>`

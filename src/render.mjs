@@ -2,6 +2,7 @@
 import { W, H, TYPES, ZONE, starsFor } from './data.mjs';
 import { formationPreview } from './tactical-preview.mjs';
 import { image, drawUnitImage, UNIT_HEIGHT, PALETTES } from './assets.mjs';
+import { STICKER_FX, squadLines, lineLength, haulBonus, lassoed, crossings, trailOf } from './stickers.mjs';
 
 const INK = '#22304a';
 const FONT = 'ui-rounded,"SF Pro Rounded","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif';
@@ -135,6 +136,18 @@ function drawEffect(c, f, renderer) {
     ring(c, 0, -22, 14 + p * 16, 18 + p * 18, '#8fd0ff', 3 * (1 - p) + .5);
   } else if (f.kind === 'arrive') {
     ring(c, 0, 2, 10 + p * 18, (10 + p * 18) * .4, f.primed ? '#ffd84a' : '#ffffff', 3 * (1 - p) + .5);
+  } else if (f.kind === 'sticker') {
+    // 贴纸生效：头顶弹出一张小贴纸（图标、贴纸名、数值），先弹大再落定，最后才淡出。
+    const pop = Math.min(1, p * 6), s = (.6 + .4 * pop) * (1 + (1 - pop) * .3), icon = image(`icons/sticker-${f.id}.webp`);
+    const name = renderer.stickerName?.(f.id) || '', value = f.word ? renderer.words?.[f.word] || '' : f.text || '';
+    c.globalAlpha = Math.min(1, (1 - p) * 3);
+    c.translate(0, -height(f) - 34 - p * 20); c.rotate(-.05); c.scale(s, s);
+    c.font = `900 11px ${FONT}`; const wn = c.measureText(name).width; c.font = `900 19px ${FONT}`; const wv = value ? c.measureText(value).width : 0;
+    const w = Math.max(wn, wv) + 40, h = value ? 44 : 28;
+    c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, 12); c.fillStyle = '#fffdf2'; c.fill(); c.strokeStyle = INK; c.lineWidth = 2.5; c.stroke();
+    if (icon) c.drawImage(icon, -w / 2 - 16, -h / 2 - 12, 36, 36);
+    label(c, name, 9, value ? -9 : 0, 11, INK, { stroke: null, weight: 900 });
+    if (value) label(c, value, 9, 10, 19, '#d97a00', { stroke: null, weight: 900 });
   } else if (!reduced && f.kind === 'dust') ellipse(c, 0, 0, 3 + p * 7, 2 + p * 3, 'rgba(240,230,200,.6)');
   c.restore();
 }
@@ -380,12 +393,45 @@ export class Renderer {
     }
     c.restore();
   }
-  drawPuddle(c, p, time) {
-    const k = Math.min(1, (p.life - p.t) / .6, (p.life - p.t) / p.life * 4), wob = this.reduced ? 0 : Math.sin(time * 3 + p.x) * 1.5;
-    c.save(); c.globalAlpha = .55 * Math.max(0, Math.min(1, k));
-    ellipse(c, p.x, p.y, p.r + wob, p.r * .42, mix(BLUE_INK, INK, .5));
-    ellipse(c, p.x - p.r * .3, p.y - 2, p.r * .35, p.r * .12, 'rgba(255,255,255,.35)');
+  // ---------- 贴纸 ----------
+  // 墨迹陷阱：路线留下的墨迹（布阵时是预览，开战后一直留着）。
+  drawTrail(c, segs, alpha = .6) {
+    if (!segs?.length) return;
+    c.save(); c.globalAlpha = alpha; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); for (const [a, b] of segs) { c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); }
+    c.strokeStyle = mix(BLUE_INK, INK, .55); c.lineWidth = STICKER_FX.trail.width; c.stroke();
+    c.strokeStyle = 'rgba(140,170,255,.35)'; c.lineWidth = 5; c.stroke();
     c.restore();
+  }
+  // 圈出目标：被圈住的敌人脚下一圈转动的红色虚线。
+  drawMark(c, x, y, t) {
+    c.save(); c.setLineDash([7, 5]); c.lineDashOffset = this.reduced ? 0 : -t * 22;
+    ring(c, x, y + 2, 27, 11, '#fffdf2', 5.5); ring(c, x, y + 2, 27, 11, RED_INK, 2.8); c.restore();
+  }
+  // 交叉引爆：交叉点上一颗跳动的星，外面一圈是爆炸范围。
+  drawBurst(c, x, y, t) {
+    const k = this.reduced ? 1 : 1 + Math.sin(t * 6) * .1, r = STICKER_FX.cross.radius;
+    c.save(); c.setLineDash([6, 6]); ring(c, x, y, r, r * .8, 'rgba(210,84,63,.7)', 2.2); c.restore();
+    star(c, x, y, 15 * k, '#ffd84a', INK);
+  }
+  tag(c, x, y, text, color) { label(c, text, x, y, 15, color, { stroke: '#fffdf2', width: 5, weight: 900 }); }
+  // 布阵时的贴纸预览：画线的时候就看得到这条线会带来什么。和开战时用的是同一套几何判断，所以看到的就是会发生的。
+  // 墨迹、红圈和交叉点画在地上；文字记进 previewTags，等士兵画完再盖在最上面。
+  drawStickerPreview(c, g, t) {
+    const has = id => this.stickers.includes(id), sk = this.sketch?.kind === 'route' && this.sketch.points.length > 1 ? this.sketch : null, tags = [];
+    let lines = squadLines(g.plan);
+    if (sk) lines = [...lines.filter(l => l.key !== sk.card), { key: 'sketch', pts: sk.points }];
+    const mine = g.plan.filter(u => u.team === 0), cards = [...new Set(mine.map(u => u.card))];
+    if (has('trail')) this.drawTrail(c, trailOf(lines), .45);
+    if (has('lasso')) for (const e of lassoed(lines, g.enemy)) { this.drawMark(c, e.x, e.y, t); tags.push([e.x, e.y + 24, `+${Math.round((STICKER_FX.lasso.mult - 1) * 100)}%`, RED_INK]); }
+    if (has('cross')) for (const p of crossings(lines)) this.drawBurst(c, p.x, p.y, t);
+    if (has('longhaul')) for (const l of lines) { const b = haulBonus(lineLength(l.pts)); if (b >= .05) { const e = l.pts.at(-1); tags.push([e.x, e.y - 22, `+${Math.round(b * 100)}%`, '#d97a00']); } }
+    if (has('ambush')) for (const card of cards) {
+      const squad = mine.filter(u => u.card === card), low = squad.reduce((a, b) => (b.y > a.y ? b : a));
+      if (!squad.some(u => u.route?.length) && sk?.card !== card) tags.push([low.x, low.y + 26, this.words.ambushTag || '', '#2f8f46']);
+    }
+    if (has('lone') && cards.length === 1) tags.push([mine[0].x, Math.min(...mine.map(u => u.y)) - 74, this.words.loneTag || '', '#d97a00']);
+    this.previewTags = tags;
   }
 
   drawUnit(c, sim, time, build, g) {
@@ -494,10 +540,13 @@ export class Renderer {
     }
     for (const o of g.rocks) if (o.kind === 'pond') drawPond(c, o, time, reduced, this.theme);
     this.drawDecals(c);
-    for (const p of g.puddles || []) this.drawPuddle(c, p, time);
+    if (!build && g.trail?.length) this.drawTrail(c, g.trail);
     this.drawRoutes(c, g, build, t);
     if (build) this.drawInspection(c, this.inspect(g));
     this.drawSketch(c, t);
+    this.previewTags = null;
+    if (build && this.stickers?.length) this.drawStickerPreview(c, g, t);
+    if (!build) for (const u of g.units) if (u.marked && u.hp > 0) this.drawMark(c, u.x, u.y, t);
 
     // 墨水笔迹：滑动画兵时留下的痕迹。
     if (this.inkTrail.length) {
@@ -513,7 +562,12 @@ export class Renderer {
     }
     const units = build ? [...g.plan, ...(g.sandbox ? [] : g.enemy)] : g.units.filter(u => u.hp > 0);
     const drawables = [...units.map(u => ({ y: u.y, u })), ...g.rocks.filter(o => o.kind !== 'pond').map(o => ({ y: o.y + o.r * .3, o }))].sort((a, b) => a.y - b.y);
-    for (const d of drawables) { if (d.o) drawRock(c, d.o, this.theme); else this.drawUnit(c, d.u, time, build, g); }
+    for (const d of drawables) {
+      if (d.o) drawRock(c, d.o, this.theme);
+      // 埋伏中的士兵画得半透明：敌人还没发现他们。
+      else if (!build && d.u.hidden) { c.save(); c.globalAlpha = .45; this.drawUnit(c, d.u, time, build, g); c.restore(); }
+      else this.drawUnit(c, d.u, time, build, g);
+    }
 
     // 卡牌模式：选着兵牌时，在鼠标处画出整队的虚影（放不下时是红色）。
     if (build && this.stamp) {
@@ -531,6 +585,7 @@ export class Renderer {
       label(c, this.unitName(ghost.type), ghost.x, ghost.y + 20, 11, '#fff', { width: 3 });
     }
     if (build && this.guidePath && !this.drag && !this.sketch) this.drawGuidePath(c, t);
+    for (const [x, y, text, color] of this.previewTags || []) this.tag(c, x, y, text, color);
     this.drawHoldFlags(c, g, build);
     for (const s of g.shots) this.drawShot(c, s);
     for (const f of g.fx) drawEffect(c, f, this);
