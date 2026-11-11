@@ -10,6 +10,8 @@
   <img src="previews/v0.3-result.png" width="250" alt="结算：星级、挑战与布阵复盘">
 </p>
 
+**在线试玩：<https://doodle-battles-h5.pages.dev>**（手机竖屏体验最好；页面不会被搜索引擎收录）
+
 当前版本：**0.3.0 试玩版**。单机游戏，没有账号、联网对战、广告或付费。
 
 ## 玩法
@@ -88,7 +90,7 @@ python3 release/build_web.py
 - 页面设置为不被搜索引擎收录；
 - 附带的 `_headers` 让浏览器每次打开都确认最新版本，避免更新后新旧文件混用。
 
-线上版本由 Cloudflare Pages 连接本仓库自动构建：推送到 `main` 就会发布正式版本，其他分支和 PR 会得到各自的预览链接。Pages 项目的构建设置：
+线上版本 <https://doodle-battles-h5.pages.dev> 由 Cloudflare Pages 项目 `doodle-battles-h5` 连接本仓库自动构建：推送到 `main` 就会发布正式版本，其他分支和 PR 会得到各自的预览链接。构建设置：
 
 | 设置 | 值 |
 | --- | --- |
