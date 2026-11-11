@@ -359,3 +359,4 @@ table.units th:first-child, table.units td:first-child { text-align: left; }
 body.reduced *, body.reduced *::before, body.reduced *::after { animation: none !important; transition: none !important; }
 .coin-inline { width: 20px; height: 20px; vertical-align: -4px; }
 @media (max-width: 380px) { .hud-team > span { display: none; } .hud-team .bar { width: 44px; } }
+.hud-team, #hud-time { white-space: nowrap; flex: none; }

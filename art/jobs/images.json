@@ -409,6 +409,110 @@
    "size": "1024x1024",
    "transparent": true,
    "prompt": "Game character sprite: a frost wizard wearing a tall pointed hat with a white snowflake pin and a long robe with white fur trim, holding a wooden staff topped with a pale icy crystal with tiny snowflakes around it. Cute chibi proportions with a big round head and a small body (about two heads tall), a friendly determined face with simple dot eyes, full body visible from head to feet, standing in a three-quarter view facing right. The team colour is royal blue: the hat and the robe; other parts use cream, tan leather, steel grey and gold. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_knight_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_knight/unit_knight_1.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the round steel helmet with its royal-blue plume and the royal-blue cape from behind; the short sword is raised in the right hand, pointing up and to the right. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_guard_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_guard/unit_guard_2.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the steel helmet and the royal-blue tabard from behind; the large kite shield is held out in front of the body on the far side so only its gold rim shows, and the short mace is in the near hand. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_archer_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_archer/unit_archer_1.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the royal-blue hood and short cape with the leather quiver of arrows on the back; the wooden longbow is drawn and aimed up and to the right. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_bomber_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_bomber/unit_bomber_2.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the leather cap with the goggle strap and the tails of the royal-blue scarf; both hands hold the round black cartoon cannonball with a short rope wick above the head; the leather satchel hangs at the hip. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_giant_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_giant/unit_giant_2.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the broad bare back with the royal-blue sash across it, the back of the small horned steel helmet and the edges of the bushy beard; the giant wooden mallet rests on the shoulder. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_lancer_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_lancer/unit_lancer_2.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. The lancer runs away from the viewer; we see the back of the light steel helmet with the long royal-blue ribbon streaming behind and the royal-blue tunic; the long spear with its small pennant points up and to the right. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_healer_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_healer/unit_healer_1.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the cream-white hood and robe with royal-blue trim and the strap of the leather satchel; one hand holds the wooden staff topped with the glowing green leaf-shaped lantern. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
+  },
+  {
+   "id": "unit_mage_back",
+   "kind": "image",
+   "status": "todo",
+   "priority": "P1",
+   "category": "unit-back",
+   "size": "1024x1024",
+   "transparent": true,
+   "refs": [
+    "inbox/candidates/unit_mage/unit_mage_2.png"
+   ],
+   "prompt": "Game character sprite: the same character as in the reference image, with exactly the same outfit, colours, proportions and art style, now drawn from behind in a three-quarter back view. The character faces away from the viewer toward the upper right, so we see the back of the head and the back of the body, and the face is hidden. We see the back of the tall pointed royal-blue hat and the long royal-blue robe with white fur trim; one hand holds the wooden staff topped with the pale icy crystal with tiny snowflakes around it. Same cute chibi proportions (big round head, small body, about two heads tall), full body visible from head to feet. The team colour stays royal blue on the same parts of the outfit. Chunky rounded shapes with a clean dark navy outline, soft gouache shading, sticker-like. Centered, the whole character fully inside the frame with margin, isolated on a fully transparent background (real alpha transparency, do not draw a checkerboard pattern). No ground, no shadow, no text. Art style: hand-painted gouache storybook illustration for a cozy mobile strategy game. Soft pastel palette (sage green, cream, warm sand, sky blue, coral red, mustard gold) with dark navy-blue line accents. Simple rounded shapes, gentle paper-grain texture, soft even daylight, no harsh shadows, no photorealism, no 3D render."
   }
  ]
 }

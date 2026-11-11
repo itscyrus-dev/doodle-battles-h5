@@ -33,6 +33,16 @@ unit "$C/unit_lancer/unit_lancer_2.png" assets/units/lancer.webp
 unit "$C/unit_healer/unit_healer_1.png" assets/units/healer.webp
 unit "$C/unit_mage/unit_mage_2.png" assets/units/mage.webp
 
+# 背面图（朝右上、背对镜头）：以上面选中的正面图为参考生成，同样从两张候选里挑一张。
+unit "$C/unit_knight_back/unit_knight_back_1.png" assets/units/knight-back.webp
+unit "$C/unit_guard_back/unit_guard_back_1.png" assets/units/guard-back.webp
+unit "$C/unit_archer_back/unit_archer_back_1.png" assets/units/archer-back.webp
+unit "$C/unit_bomber_back/unit_bomber_back_1.png" assets/units/bomber-back.webp
+unit "$C/unit_giant_back/unit_giant_back_2.png" assets/units/giant-back.webp
+unit "$C/unit_lancer_back/unit_lancer_back_1.png" assets/units/lancer-back.webp
+unit "$C/unit_healer_back/unit_healer_back_2.png" assets/units/healer-back.webp
+unit "$C/unit_mage_back/unit_mage_back_1.png" assets/units/mage-back.webp
+
 for i in heal rally smoke thunder frost; do sprite "$IN/item_$i.png" "assets/icons/item-$i.webp" 192; done
 for i in coin star ink chest trophy daily codex hint sandbox palette map; do sprite "$IN/ico_$i.png" "assets/icons/$i.webp" 160; done
 sprite "$IN/art_victory.png" assets/ui/victory.webp 512
