@@ -1,21 +1,24 @@
-// 远征（肉鸽模式）：一局三章，每章一张分岔地图。这里只有规则和状态，不碰界面和存储。
-// 地图和遭遇战都由种子生成，存档只需要记玩家的状态和选择。
-import { TYPES, UNIT_ORDER, ITEMS, ITEM_ORDER } from './data.mjs';
-import { RELICS, RELIC_ORDER, UPGRADES, runMods, bountyOf } from './relics.mjs';
+// 远征（肉鸽模式，卡牌版）：一局三章，每章一张分岔地图。玩家带一副牌：每场抽手牌，兵牌整队放下，战术牌开战后用战墨打出。
+// 这里只有规则和状态，不碰界面和存储。地图、遭遇战和抽牌都由种子决定，存档只需要记玩家的状态和选择。
+import { TYPES, UNIT_ORDER } from './data.mjs';
+import { RELICS, RELIC_ORDER, runMods, relicPerks } from './relics.mjs';
+import { CARDS, CARD_ORDER, RARITY_WEIGHT, STARTER_DECKS, HAND, MOMENTUM, cardStats } from './cards.mjs';
 import { rng, hash, pickOne, makeEncounter, ACTS, ROWS } from './encounters.mjs';
 import { validRoute } from './routes.mjs';
 
-export const GEN_VERSION = 1;
+export const GEN_VERSION = 2;
 export const START = { hearts: 3, ink: 100 };
-// 开局编制：起始兵种、一件遗物和道具。
+export const MIN_DECK = 5;
+// 开局编制：起始牌库和一件遗物。
 export const WARBANDS = {
-  iron: { deck: ['knight', 'guard', 'archer'], relics: ['thick'], items: { heal: 2 } },
-  raiders: { deck: ['knight', 'archer', 'lancer'], relics: ['swift'], items: { rally: 1, heal: 1 } },
-  sappers: { deck: ['guard', 'archer', 'bomber'], relics: ['anchor'], items: { smoke: 1, heal: 1 } }
+  iron: { deck: STARTER_DECKS.iron, relics: ['thick'] },
+  raiders: { deck: STARTER_DECKS.raiders, relics: ['swift'] },
+  sappers: { deck: STARTER_DECKS.sappers, relics: ['anchor'] }
 };
 export const WARBAND_ORDER = Object.keys(WARBANDS);
-export const PRICES = { unit: 55, upgrade: 45, relic: { common: 80, rare: 120 }, item: 25, heart: 40, ink: 30 };
+export const PRICES = { card: { common: 40, uncommon: 60, rare: 85 }, relic: { common: 80, rare: 120 }, heart: 40, ink: 30, remove: 50, upgrade: 60 };
 export const COINS = { battle: 14, elite: 30, boss: 60, star: 4 };
+export const WIN_INK = 5; // 每打赢一场普通战，墨水上限 +5
 export const NODE_KINDS = ['battle', 'elite', 'event', 'shop', 'camp', 'treasure', 'boss'];
 export const isFight = kind => kind === 'battle' || kind === 'elite' || kind === 'boss';
 
@@ -70,53 +73,86 @@ export function available(run) {
 
 // ---------- 开局与存档校验 ----------
 export function newRun({ seed = Math.floor(Math.random() * 2147483646) + 1, warband = 'iron' } = {}) {
-  const wb = WARBANDS[warband] || WARBANDS.iron;
+  const id = WARBANDS[warband] ? warband : 'iron', wb = WARBANDS[id];
   return {
-    v: 1, gen: GEN_VERSION, seed, warband: WARBANDS[warband] ? warband : 'iron', act: 0, at: null, path: [],
+    v: 1, gen: GEN_VERSION, seed, warband: id, act: 0, at: null, path: [],
     hearts: START.hearts, maxHearts: START.hearts, ink: START.ink, coins: 0,
-    deck: [...wb.deck], upgrades: [], relics: [...wb.relics], items: { ...wb.items },
+    deck: wb.deck.map(card => ({ id: card, up: false })), relics: [...wb.relics],
+    hand: null, extra: 0, mulligan: false,
     screen: 'map', pending: null, draft: [], attempts: 0, result: null,
-    stats: { wins: 0, losses: 0, kills: 0, elites: 0, bosses: 0, coins: 0, nodes: 0 }
+    stats: { wins: 0, losses: 0, kills: 0, elites: 0, bosses: 0, coins: 0, nodes: 0, cards: 0, tactics: 0 }
   };
 }
 
 const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const uniqueIn = (list, allowed) => Array.isArray(list) && list.every(v => allowed.includes(v)) && new Set(list).size === list.length;
-function validOption(o) {
+const validEntry = e => e && typeof e === 'object' && CARDS[e.id] && typeof e.up === 'boolean';
+function validOption(o, deckSize) {
   if (!o || typeof o !== 'object') return false;
-  if (o.kind === 'unit' || o.kind === 'upgrade') return UNIT_ORDER.includes(o.type);
+  if (o.kind === 'card') return !!CARDS[o.id] && (o.up === undefined || typeof o.up === 'boolean');
   if (o.kind === 'relic') return RELIC_ORDER.includes(o.id);
-  if (o.kind === 'item') return ITEM_ORDER.includes(o.id) && int(o.n, 1, 3);
   if (o.kind === 'ink' || o.kind === 'coins') return int(o.n, 1, 200);
   if (o.kind === 'heart') return int(o.n, 1, 3);
+  if (o.kind === 'service') return ['remove', 'upgrade'].includes(o.service);
+  if (o.kind === 'upgrade' || o.kind === 'remove') return int(o.index, 0, deckSize - 1);
   return false;
 }
-// 存档里的远征：逐项校验，任何一处不对就整局作废，避免坏数据让游戏卡住。
+// 存档里的远征：逐项校验，任何一处不对就整局作废，避免坏数据让游戏卡住（只有阵容草稿里的坏士兵会被单独丢掉）。
 export function normalizeRun(raw) {
   const r = raw && typeof raw === 'object' ? raw : null;
   if (!r || r.v !== 1 || r.gen !== GEN_VERSION || !int(r.seed, 1, 2147483647) || !WARBANDS[r.warband] || !int(r.act, 0, ACTS - 1)) return null;
   if (!int(r.maxHearts, 1, 9) || !int(r.hearts, 0, r.maxHearts) || !int(r.ink, 40, 999) || !int(r.coins, 0, 99999)) return null;
-  if (!uniqueIn(r.deck, UNIT_ORDER) || !r.deck.length || !uniqueIn(r.upgrades, r.deck) || !uniqueIn(r.relics, RELIC_ORDER)) return null;
-  if (!r.items || typeof r.items !== 'object' || Object.entries(r.items).some(([id, n]) => !ITEM_ORDER.includes(id) || !int(n, 0, 9))) return null;
+  if (!Array.isArray(r.deck) || r.deck.length < 1 || r.deck.length > 60 || !r.deck.every(validEntry) || !uniqueIn(r.relics, RELIC_ORDER)) return null;
+  const size = r.deck.length;
+  if (r.hand !== null && !(Array.isArray(r.hand) && r.hand.length <= 16 && r.hand.every(i => int(i, 0, size - 1)) && new Set(r.hand).size === r.hand.length)) return null;
+  if (!int(r.extra, 0, HAND.extraMax) || typeof r.mulligan !== 'boolean') return null;
   if (!['map', 'battle', 'reward', 'shop', 'camp', 'event', 'over'].includes(r.screen)) return null;
   const map = makeMap(r.seed, r.act);
   if (r.at !== null && !map.nodes.has(r.at)) return null;
   if (!Array.isArray(r.path) || r.path.some(id => !map.nodes.has(id))) return null;
-  if (!int(r.attempts, 0, 99) || !Array.isArray(r.draft) || r.draft.length > 12) return null;
-  const draft = r.draft.filter(u => u && r.deck.includes(u.type) && Number.isFinite(u.x) && Number.isFinite(u.y)).map(u => ({ type: u.type, x: u.x, y: u.y, ...(u.route && validRoute(u.route) ? { route: u.route.map(p => ({ x: p.x, y: p.y })) } : {}), ...(u.hold === true ? { hold: true } : {}) }));
+  if (!int(r.attempts, 0, 99) || !Array.isArray(r.draft) || r.draft.length > 40) return null;
+  const draft = r.draft.filter(u => u && int(u.card, 0, size - 1) && CARDS[r.deck[u.card].id].type === u.type && Number.isFinite(u.x) && Number.isFinite(u.y))
+    .map(u => ({ card: u.card, type: u.type, x: u.x, y: u.y, ...(u.route && validRoute(u.route) ? { route: u.route.map(p => ({ x: p.x, y: p.y })) } : {}), ...(u.hold === true ? { hold: true } : {}) }));
   const p = r.pending;
-  if (r.screen === 'battle' && !(p && p.node === r.at && isFight(nodeOf({ seed: r.seed, act: r.act }, r.at)?.kind))) return null;
-  if (r.screen === 'reward' && !(p && Array.isArray(p.options) && p.options.every(validOption) && int(p.coins ?? 0, 0, 999))) return null;
-  if (r.screen === 'shop' && !(p && Array.isArray(p.stock) && p.stock.every(s => validOption(s) && int(s.price, 1, 999) && typeof s.sold === 'boolean'))) return null;
-  if (r.screen === 'event' && !(p && EVENTS[p.event] && (p.unit === undefined || UNIT_ORDER.includes(p.unit)) && (p.relic === undefined || RELIC_ORDER.includes(p.relic)) && (p.upgrade === undefined || UNIT_ORDER.includes(p.upgrade)) && (p.item === undefined || ITEM_ORDER.includes(p.item)))) return null;
+  if (r.screen === 'battle' && !(p && p.node === r.at && isFight(nodeOf({ seed: r.seed, act: r.act }, r.at)?.kind) && Array.isArray(r.hand))) return null;
+  if (r.screen === 'reward' && !(p && Array.isArray(p.options) && p.options.every(o => validOption(o, size)) && int(p.coins ?? 0, 0, 999))) return null;
+  if (r.screen === 'shop' && !(p && Array.isArray(p.stock) && p.stock.every(s => validOption(s, size) && int(s.price, 1, 999) && typeof s.sold === 'boolean'))) return null;
+  if (r.screen === 'camp' && !(p && typeof p.done === 'boolean')) return null;
+  if (r.screen === 'event' && !(p && EVENTS[p.event] && (p.card === undefined || CARDS[p.card]) && (p.relic === undefined || RELIC_ORDER.includes(p.relic)) && (p.index === undefined || int(p.index, 0, size - 1)))) return null;
   if (r.screen === 'over' && !['victory', 'defeat', 'abandoned'].includes(r.result)) return null;
-  const stats = {}; for (const k of ['wins', 'losses', 'kills', 'elites', 'bosses', 'coins', 'nodes']) stats[k] = int(r.stats?.[k], 0, 999999) ? r.stats[k] : 0;
+  const stats = {}; for (const k of ['wins', 'losses', 'kills', 'elites', 'bosses', 'coins', 'nodes', 'cards', 'tactics']) stats[k] = int(r.stats?.[k], 0, 999999) ? r.stats[k] : 0;
   return {
     v: 1, gen: GEN_VERSION, seed: r.seed, warband: r.warband, act: r.act, at: r.at, path: r.path.slice(),
     hearts: r.hearts, maxHearts: r.maxHearts, ink: r.ink, coins: r.coins,
-    deck: r.deck.slice(), upgrades: r.upgrades.slice(), relics: r.relics.slice(), items: { ...r.items },
+    deck: r.deck.map(e => ({ id: e.id, up: e.up })), relics: r.relics.slice(), hand: r.hand ? r.hand.slice() : null, extra: r.extra, mulligan: r.mulligan,
     screen: r.screen, pending: p ? structuredClone(p) : null, draft, attempts: r.attempts, result: r.screen === 'over' ? r.result : null, stats
   };
+}
+
+// ---------- 抽牌 ----------
+export const perksOf = run => relicPerks(run.relics);
+export const handSize = run => HAND.size + perksOf(run).hand;
+// 手牌按“兵牌在前、战术牌在后”，同类按牌库顺序排。
+const sortHand = (run, hand) => hand.slice().sort((a, b) => (CARDS[run.deck[a].id].kind === 'tactic') - (CARDS[run.deck[b].id].kind === 'tactic') || a - b);
+export function drawHand(run, salt = 0) {
+  const rand = rng(hash(run.seed, 'hand', run.at, salt));
+  return sortHand(run, shuffle(rand, run.deck.map((_, i) => i)).slice(0, Math.min(handSize(run), run.deck.length)));
+}
+// 花墨水多抽一张（每场最多 3 次）。
+export function canExtraDraw(run) { return run.screen === 'battle' && run.extra < HAND.extraMax && run.hand.length < run.deck.length; }
+export function extraDraw(run) {
+  if (!canExtraDraw(run)) return -1;
+  const rand = rng(hash(run.seed, 'extra', run.at, run.extra)), rest = run.deck.map((_, i) => i).filter(i => !run.hand.includes(i));
+  const card = pickOne(rand, rest);
+  run.extra++; run.hand = sortHand(run, [...run.hand, card]);
+  return card;
+}
+// 重抽：每场一次，换一手全新的牌（还没多抽、也没出牌时才能用，界面负责检查出牌）。
+export function canMulligan(run) { return run.screen === 'battle' && !run.mulligan && run.extra === 0; }
+export function mulligan(run) {
+  if (!canMulligan(run)) return false;
+  run.hand = drawHand(run, 1); run.mulligan = true; run.draft = [];
+  return true;
 }
 
 // ---------- 进入节点 ----------
@@ -124,7 +160,7 @@ export function enter(run, id) {
   if (!available(run).includes(id)) return false;
   const node = nodeOf(run, id);
   run.at = id; run.path.push(id); run.stats.nodes++; run.attempts = 0;
-  if (isFight(node.kind)) { run.screen = 'battle'; run.pending = { node: id }; }
+  if (isFight(node.kind)) { run.screen = 'battle'; run.pending = { node: id }; run.hand = drawHand(run); run.extra = 0; run.mulligan = false; run.draft = []; }
   else if (node.kind === 'shop') { run.screen = 'shop'; run.pending = { stock: makeStock(run, id) }; }
   else if (node.kind === 'camp') { run.screen = 'camp'; run.pending = { done: false }; }
   else if (node.kind === 'event') { run.screen = 'event'; run.pending = makeEvent(run, id); }
@@ -132,58 +168,54 @@ export function enter(run, id) {
   return true;
 }
 
-// 当前战斗的完整设置：遭遇战、墨水预算和战斗修正。
+// 当前战斗的完整设置：遭遇战、墨水预算、战斗修正、手牌和战墨规则。
 export function battleOf(run) {
   if (run.screen !== 'battle') return null;
-  const node = nodeOf(run, run.pending.node);
+  const node = nodeOf(run, run.pending.node), perks = perksOf(run);
   const encounter = makeEncounter({ seed: run.seed, act: run.act, row: node.row, kind: node.kind, node: node.id });
-  const def = { index: -1, budget: run.ink, enemies: encounter.enemies, rocks: encounter.rocks, par: encounter.par, title: encounter.name };
-  return { node, encounter, def, mods: runMods(run, encounter.enemyMods) };
+  const def = { index: -1, budget: run.ink - run.extra * HAND.extraCost, enemies: encounter.enemies, rocks: encounter.rocks, par: encounter.par, title: encounter.name };
+  const hand = run.hand.map(index => ({ index, ...cardStats(run.deck[index], perks) }));
+  return { node, encounter, def, mods: runMods(run, encounter.enemyMods), hand, momentum: { ...MOMENTUM, start: MOMENTUM.start + perks.momentum } };
 }
-export const itemsOf = run => ITEM_ORDER.filter(id => (run.items[id] || 0) > 0);
 
 // ---------- 战斗结果 ----------
-// result = { won, survivors, deployed, stars, kills, itemUsed, plan }
+// result = { won, survivors, deployed, stars, kills, tactics, plan }
 export function finishBattle(run, result) {
   if (run.screen !== 'battle') return null;
   const node = nodeOf(run, run.pending.node);
-  if (result.itemUsed && run.items[result.itemUsed] > 0) run.items[result.itemUsed]--;
-  run.stats.kills += result.kills || 0;
-  // 输了重打同一场，路线和驻守都保留；赢了以后敌阵会变，只留站位。
-  if (Array.isArray(result.plan)) run.draft = result.plan.filter(u => u.team === 0).map(u => ({ type: u.type, x: u.x, y: u.y, ...(!result.won && u.route ? { route: u.route.map(p => ({ x: p.x, y: p.y })) } : {}), ...(!result.won && u.hold ? { hold: true } : {}) }));
+  run.stats.kills += result.kills || 0; run.stats.tactics += result.tactics || 0;
+  run.stats.cards += new Set((result.plan || []).filter(u => u.team === 0 && u.card !== undefined).map(u => u.card)).size;
   if (!result.won) {
+    // 输了重打同一场：手牌、站位、路线和驻守都保留。
+    run.draft = (result.plan || []).filter(u => u.team === 0 && u.card !== undefined).map(u => ({ card: u.card, type: u.type, x: u.x, y: u.y, ...(u.route ? { route: u.route.map(p => ({ x: p.x, y: p.y })) } : {}), ...(u.hold ? { hold: true } : {}) }));
     run.stats.losses++; run.hearts = Math.max(0, run.hearts - 1); run.attempts++;
     if (run.hearts === 0) { run.screen = 'over'; run.result = 'defeat'; run.pending = null; }
     return { won: false, hearts: run.hearts, over: run.hearts === 0 };
   }
-  const bounty = bountyOf(run.relics) * (result.survivors || 0);
+  const bounty = perksOf(run).bounty * (result.survivors || 0);
   const coins = COINS[node.kind] + COINS.star * Math.max(0, (result.stars || 1) - 1) + bounty;
   run.coins += coins; run.stats.coins += coins; run.stats.wins++;
+  run.hand = null; run.extra = 0; run.mulligan = false; run.draft = [];
   const rand = rng(hash(run.seed, 'spoils', node.id));
-  if (node.kind === 'battle') run.pending = { kind: 'spoils', coins, bounty, options: spoils(run, rand) };
-  else if (node.kind === 'elite') { run.stats.elites++; run.pending = { kind: 'elite', coins, bounty, options: relicChoices(run, 3, rand, .4) }; }
+  let ink = 0;
+  if (node.kind === 'battle') { ink = WIN_INK; run.ink += ink; run.pending = { kind: 'spoils', coins, bounty, ink, options: cardChoices(run, 3, rand) }; }
+  else if (node.kind === 'elite') { run.stats.elites++; run.pending = { kind: 'elite', coins, bounty, ink, options: relicChoices(run, 3, rand, .4) }; }
   else {
-    run.stats.bosses++; run.hearts = run.maxHearts; run.ink += 20;
-    run.pending = { kind: 'boss', coins, bounty, options: relicChoices(run, 3, rand, 1) };
+    ink = 20; run.stats.bosses++; run.hearts = run.maxHearts; run.ink += ink;
+    run.pending = { kind: 'boss', coins, bounty, ink, options: relicChoices(run, 3, rand, 1) };
   }
   run.screen = 'reward';
-  return { won: true, coins, bounty };
+  return { won: true, coins, bounty, ink };
 }
 
-// 普通战后三选一：新兵种、精锐升级、墨水上限、道具，偶尔有常见遗物。
-function spoils(run, rand) {
-  const missing = UNIT_ORDER.filter(t => !run.deck.includes(t)), upgradable = run.deck.filter(t => !run.upgrades.includes(t));
-  const commons = RELIC_ORDER.filter(id => RELICS[id].tier === 'common' && !run.relics.includes(id));
-  const makers = [];
-  if (missing.length) makers.push([() => ({ kind: 'unit', type: pickOne(rand, missing) }), 3]);
-  if (upgradable.length) makers.push([() => ({ kind: 'upgrade', type: pickOne(rand, upgradable) }), 2.5]);
-  makers.push([() => ({ kind: 'ink', n: run.act >= 1 ? 20 : 15 }), 2.5]);
-  makers.push([() => ({ kind: 'item', id: pickOne(rand, ITEM_ORDER), n: 1 }), 1.2]);
-  if (commons.length) makers.push([() => ({ kind: 'relic', id: pickOne(rand, commons) }), 1]);
+// 选牌：按稀有度加权抽，后面的章节稀有牌更多；kind 可以限定兵牌或战术牌。三张不重复。
+export function cardChoices(run, n, rand, kind = null) {
+  const weight = id => RARITY_WEIGHT[CARDS[id].rarity] + (CARDS[id].rarity === 'rare' ? run.act : CARDS[id].rarity === 'uncommon' ? run.act * .5 : 0);
   const out = [];
-  for (let tries = 0; tries < 30 && out.length < 3; tries++) {
-    const o = weighted(rand, makers)();
-    if (!out.some(v => v.kind === o.kind && (v.type ?? v.id ?? v.n) === (o.type ?? o.id ?? o.n))) out.push(o);
+  for (let tries = 0; tries < 40 && out.length < n; tries++) {
+    const pool = CARD_ORDER.filter(id => (!kind || CARDS[id].kind === kind) && !out.some(o => o.id === id)).map(id => [id, weight(id)]);
+    if (!pool.length) break;
+    out.push({ kind: 'card', id: weighted(rand, pool) });
   }
   return out;
 }
@@ -203,13 +235,13 @@ function relicChoices(run, n, rand, rareChance) {
 
 // 套用一个奖励或购买的商品。
 export function grant(run, o) {
-  if (o.kind === 'unit' && !run.deck.includes(o.type)) run.deck.push(o.type);
-  else if (o.kind === 'upgrade' && run.deck.includes(o.type) && !run.upgrades.includes(o.type)) run.upgrades.push(o.type);
+  if (o.kind === 'card' && CARDS[o.id]) run.deck.push({ id: o.id, up: !!o.up });
   else if (o.kind === 'relic' && !run.relics.includes(o.id)) run.relics.push(o.id);
   else if (o.kind === 'ink') run.ink += o.n;
   else if (o.kind === 'coins') { run.coins += o.n; run.stats.coins += o.n; }
-  else if (o.kind === 'item') run.items[o.id] = Math.min(9, (run.items[o.id] || 0) + o.n);
   else if (o.kind === 'heart') run.hearts = Math.min(run.maxHearts, run.hearts + o.n);
+  else if (o.kind === 'upgrade' && run.deck[o.index] && !run.deck[o.index].up) run.deck[o.index].up = true;
+  else if (o.kind === 'remove' && run.deck[o.index] && run.deck.length > MIN_DECK) run.deck.splice(o.index, 1);
   else return false;
   return true;
 }
@@ -229,7 +261,7 @@ export function leave(run) {
   run.pending = null;
   if (node?.kind === 'boss') {
     if (run.act + 1 >= ACTS) { run.screen = 'over'; run.result = 'victory'; return true; }
-    run.act++; run.at = null; run.path = []; run.draft = run.draft.map(({ type, x, y }) => ({ type, x, y }));
+    run.act++; run.at = null; run.path = [];
   }
   run.screen = 'map';
   return true;
@@ -238,47 +270,52 @@ export function leave(run) {
 // ---------- 军需官 ----------
 function makeStock(run, id) {
   const rand = rng(hash(run.seed, 'shop', id)), stock = [];
-  const missing = shuffle(rand, UNIT_ORDER.filter(t => !run.deck.includes(t))), upgradable = shuffle(rand, run.deck.filter(t => !run.upgrades.includes(t)));
-  for (const type of missing.slice(0, 2)) stock.push({ kind: 'unit', type, price: PRICES.unit, sold: false });
-  for (const type of upgradable.slice(0, 2)) stock.push({ kind: 'upgrade', type, price: PRICES.upgrade, sold: false });
+  for (const o of [...cardChoices(run, 3, rand, 'unit'), ...cardChoices(run, 2, rand, 'tactic')]) stock.push({ ...o, price: PRICES.card[CARDS[o.id].rarity], sold: false });
   const relic = relicChoices(run, 1, rand, .35)[0];
   if (relic.kind === 'relic') stock.push({ ...relic, price: PRICES.relic[RELICS[relic.id].tier], sold: false });
-  for (const item of shuffle(rand, ITEM_ORDER).slice(0, 2)) stock.push({ kind: 'item', id: item, n: 1, price: PRICES.item, sold: false });
+  stock.push({ kind: 'service', service: 'remove', price: PRICES.remove, sold: false });
+  stock.push({ kind: 'service', service: 'upgrade', price: PRICES.upgrade, sold: false });
   stock.push({ kind: 'heart', n: 1, price: PRICES.heart, sold: false });
   stock.push({ kind: 'ink', n: 10, price: PRICES.ink, sold: false });
   return stock;
 }
+const upgradable = run => run.deck.some(e => !e.up);
 export function canBuy(run, index) {
   const s = run.screen === 'shop' ? run.pending.stock[index] : null;
   if (!s || s.sold || run.coins < s.price) return false;
   if (s.kind === 'heart') return run.hearts < run.maxHearts;
-  if (s.kind === 'unit') return !run.deck.includes(s.type);
-  if (s.kind === 'upgrade') return run.deck.includes(s.type) && !run.upgrades.includes(s.type);
   if (s.kind === 'relic') return !run.relics.includes(s.id);
+  if (s.kind === 'service') return s.service === 'remove' ? run.deck.length > MIN_DECK : upgradable(run);
   return true;
 }
-export function buy(run, index) {
+// 买东西；删牌和升级要指定牌库里的哪一张（deckIndex）。
+export function buy(run, index, deckIndex = null) {
   if (!canBuy(run, index)) return false;
   const s = run.pending.stock[index];
+  if (s.kind === 'service') {
+    const target = run.deck[deckIndex];
+    if (!target || (s.service === 'upgrade' && target.up)) return false;
+    run.coins -= s.price; s.sold = true; grant(run, { kind: s.service, index: deckIndex });
+    return true;
+  }
   run.coins -= s.price; s.sold = true; grant(run, s);
   return true;
 }
 
 // ---------- 营火 ----------
-export const CAMP = { rest: 1, study: 10 };
+export const CAMP = { rest: 1 };
 export function campOptions(run) {
   return [
     { id: 'rest', ok: run.hearts < run.maxHearts },
-    { id: 'train', ok: run.deck.some(t => !run.upgrades.includes(t)) },
-    { id: 'study', ok: true }
+    { id: 'upgrade', ok: upgradable(run) },
+    { id: 'remove', ok: run.deck.length > MIN_DECK }
   ];
 }
-export function camp(run, id, type = null) {
+export function camp(run, id, deckIndex = null) {
   if (run.screen !== 'camp' || run.pending?.done) return false;
   const option = campOptions(run).find(o => o.id === id); if (!option?.ok) return false;
   if (id === 'rest') grant(run, { kind: 'heart', n: CAMP.rest });
-  if (id === 'study') grant(run, { kind: 'ink', n: CAMP.study });
-  if (id === 'train') { if (!run.deck.includes(type) || run.upgrades.includes(type)) return false; grant(run, { kind: 'upgrade', type }); }
+  else if (!run.deck[deckIndex] || !grant(run, { kind: id, index: deckIndex })) return false;
   run.pending.done = true;
   return true;
 }
@@ -296,23 +333,22 @@ export const EVENT_ORDER = Object.keys(EVENTS);
 export const EVENT_GAIN = { springInk: 20, springCoins: 40, scribeCoins: 25, cacheCoins: 15 };
 function makeEvent(run, id) {
   const rand = rng(hash(run.seed, 'event', id));
-  const missing = UNIT_ORDER.filter(t => !run.deck.includes(t)), upgradable = run.deck.filter(t => !run.upgrades.includes(t));
   const rares = RELIC_ORDER.filter(r => RELICS[r].tier === 'rare' && !run.relics.includes(r));
-  const pool = ['spring', 'cache', ...(missing.length ? ['mercenary'] : []), ...(rares.length ? ['shrine'] : []), ...(upgradable.length ? ['scribe'] : [])];
+  const pool = ['spring', 'cache', 'mercenary', ...(rares.length ? ['shrine'] : []), ...(upgradable(run) ? ['scribe'] : [])];
   const event = pickOne(rand, pool), p = { event };
-  if (event === 'mercenary') p.unit = pickOne(rand, missing);
+  if (event === 'mercenary') p.card = pickOne(rand, CARD_ORDER.filter(c => CARDS[c].kind === 'unit' && CARDS[c].rarity !== 'common'));
   if (event === 'shrine') p.relic = pickOne(rand, rares);
-  if (event === 'scribe') p.upgrade = pickOne(rand, upgradable);
-  if (event === 'cache') p.item = pickOne(rand, ITEM_ORDER);
+  if (event === 'scribe') p.index = pickOne(rand, run.deck.map((e, i) => (e.up ? -1 : i)).filter(i => i >= 0));
+  if (event === 'cache') p.card = pickOne(rand, CARD_ORDER.filter(c => CARDS[c].kind === 'tactic'));
   return p;
 }
 export function eventChoices(run) {
   const p = run.pending, e = EVENTS[p.event];
   return e.choices.map(id => {
     let ok = true;
-    if (p.event === 'mercenary' && id === 'hire') ok = run.coins >= e.price && !run.deck.includes(p.unit);
+    if (p.event === 'mercenary' && id === 'hire') ok = run.coins >= e.price;
     if (p.event === 'shrine' && id === 'pray') ok = run.hearts > 1 && !run.relics.includes(p.relic);
-    if (p.event === 'scribe' && id === 'train') ok = !run.upgrades.includes(p.upgrade);
+    if (p.event === 'scribe' && id === 'train') ok = !!run.deck[p.index] && !run.deck[p.index].up;
     return { id, ok };
   });
 }
@@ -321,10 +357,10 @@ export function resolveEvent(run, id) {
   const p = run.pending, choice = eventChoices(run).find(c => c.id === id);
   if (!choice?.ok) return false;
   if (p.event === 'spring') grant(run, id === 'ink' ? { kind: 'ink', n: EVENT_GAIN.springInk } : { kind: 'coins', n: EVENT_GAIN.springCoins });
-  if (p.event === 'mercenary' && id === 'hire') { run.coins -= EVENTS.mercenary.price; grant(run, { kind: 'unit', type: p.unit }); }
+  if (p.event === 'mercenary' && id === 'hire') { run.coins -= EVENTS.mercenary.price; grant(run, { kind: 'card', id: p.card }); }
   if (p.event === 'shrine' && id === 'pray') { run.hearts--; grant(run, { kind: 'relic', id: p.relic }); }
-  if (p.event === 'scribe') grant(run, id === 'train' ? { kind: 'upgrade', type: p.upgrade } : { kind: 'coins', n: EVENT_GAIN.scribeCoins });
-  if (p.event === 'cache') { grant(run, { kind: 'item', id: p.item, n: 1 }); grant(run, { kind: 'coins', n: EVENT_GAIN.cacheCoins }); }
+  if (p.event === 'scribe') grant(run, id === 'train' ? { kind: 'upgrade', index: p.index } : { kind: 'coins', n: EVENT_GAIN.scribeCoins });
+  if (p.event === 'cache') { grant(run, { kind: 'card', id: p.card }); grant(run, { kind: 'coins', n: EVENT_GAIN.cacheCoins }); }
   leave(run);
   return true;
 }
@@ -335,4 +371,4 @@ export function abandon(run) { if (run.screen === 'over') return false; run.scre
 export function runPayout(run) {
   return run.stats.nodes * 4 + run.stats.bosses * 40 + (run.result === 'victory' ? 100 : 0);
 }
-export { UPGRADES, RELICS, ITEMS, TYPES };
+export { RELICS, TYPES, UNIT_ORDER, CARDS };

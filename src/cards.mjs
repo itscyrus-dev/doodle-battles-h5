@@ -1,0 +1,58 @@
+// 远征的卡牌：兵牌（一整支小队，可带关键词）和战术牌（开战后用战墨打出）。只有数据和规则，不碰界面。
+import { TYPES } from './data.mjs';
+import { KEYWORDS, TACTICS } from './engine.mjs';
+
+export const KEYWORD_ORDER = Object.keys(KEYWORDS);
+export const TACTIC_ORDER = Object.keys(TACTICS);
+// rarity：common 常见、uncommon 少见、rare 稀有。兵牌的 cost 是墨水；战术牌的 cost 是战墨。
+export const CARDS = {
+  knights: { kind: 'unit', type: 'knight', n: 3, cost: 28, rarity: 'common' },
+  chargers: { kind: 'unit', type: 'knight', n: 2, kw: ['charge'], cost: 24, rarity: 'common' },
+  frostblades: { kind: 'unit', type: 'knight', n: 3, kw: ['frostbite'], cost: 34, rarity: 'uncommon' },
+  berserkers: { kind: 'unit', type: 'knight', n: 2, kw: ['berserk', 'lifesteal'], cost: 30, rarity: 'rare' },
+  guards: { kind: 'unit', type: 'guard', n: 2, cost: 34, rarity: 'common' },
+  ironwall: { kind: 'unit', type: 'guard', n: 2, kw: ['bulwark', 'veteran'], cost: 42, rarity: 'uncommon' },
+  archers: { kind: 'unit', type: 'archer', n: 2, cost: 30, rarity: 'common' },
+  volley: { kind: 'unit', type: 'archer', n: 2, kw: ['volley'], cost: 36, rarity: 'uncommon' },
+  arrowrain: { kind: 'unit', type: 'archer', n: 3, cost: 44, rarity: 'uncommon' },
+  bomber: { kind: 'unit', type: 'bomber', n: 1, cost: 24, rarity: 'common' },
+  sappers: { kind: 'unit', type: 'bomber', n: 2, cost: 46, rarity: 'uncommon' },
+  giant: { kind: 'unit', type: 'giant', n: 1, cost: 46, rarity: 'uncommon' },
+  warchief: { kind: 'unit', type: 'giant', n: 1, kw: ['inspire', 'veteran'], cost: 56, rarity: 'rare' },
+  lancers: { kind: 'unit', type: 'lancer', n: 2, cost: 38, rarity: 'common' },
+  outriders: { kind: 'unit', type: 'lancer', n: 2, kw: ['swift', 'charge'], cost: 46, rarity: 'rare' },
+  medic: { kind: 'unit', type: 'healer', n: 1, cost: 22, rarity: 'common' },
+  medics: { kind: 'unit', type: 'healer', n: 2, cost: 42, rarity: 'uncommon' },
+  mage: { kind: 'unit', type: 'mage', n: 1, cost: 26, rarity: 'uncommon' },
+  t_heal: { kind: 'tactic', effect: 'heal', cost: 1, rarity: 'common' },
+  t_smoke: { kind: 'tactic', effect: 'smoke', cost: 1, rarity: 'common' },
+  t_rally: { kind: 'tactic', effect: 'rally', cost: 2, rarity: 'common' },
+  t_thunder: { kind: 'tactic', effect: 'thunder', cost: 2, targeted: true, rarity: 'uncommon' },
+  t_reinforce: { kind: 'tactic', effect: 'reinforce', cost: 2, targeted: true, rarity: 'uncommon' },
+  t_assault: { kind: 'tactic', effect: 'assault', cost: 2, rarity: 'uncommon' },
+  t_shield: { kind: 'tactic', effect: 'shield', cost: 2, rarity: 'uncommon' },
+  t_frost: { kind: 'tactic', effect: 'frost', cost: 3, rarity: 'rare' }
+};
+export const CARD_ORDER = Object.keys(CARDS);
+export const RARITY_WEIGHT = { common: 6, uncommon: 3, rare: 1 };
+// 每局开头的牌库（8 张），按编制不同。
+export const STARTER_DECKS = {
+  iron: ['knights', 'knights', 'guards', 'guards', 'archers', 'archers', 't_heal', 't_rally'],
+  raiders: ['knights', 'chargers', 'lancers', 'lancers', 'archers', 'archers', 't_assault', 't_heal'],
+  sappers: ['guards', 'guards', 'archers', 'archers', 'bomber', 'bomber', 't_smoke', 't_thunder']
+};
+// 手牌与战墨的规则。
+export const HAND = { size: 5, extraCost: 10, extraMax: 3 };
+export const MOMENTUM = { start: 1, perKill: 1, perSeconds: 8, max: 9 };
+
+// 一张牌（牌库里的一项 { id, up }）实际放出的人数、墨水和战墨。horde 是“人海”遗物：3 人以上的小队多 1 人。
+// thrift 是“省墨”遗物：兵牌墨水 −10%；tactician 是“军师”：战术牌战墨 −1（最少 1）。
+export function cardStats(entry, { horde = false, tactician = false, thrift = false } = {}) {
+  const c = CARDS[entry.id];
+  if (c.kind === 'tactic') return { ...c, id: entry.id, up: !!entry.up, cost: Math.max(1, c.cost - (tactician ? 1 : 0)) };
+  const n = c.n + (entry.up ? 1 : 0) + (horde && c.n >= 3 ? 1 : 0);
+  const cost = Math.round((c.cost + (entry.up ? Math.round(TYPES[c.type].cost * .75) : 0)) * (thrift ? .9 : 1));
+  return { ...c, id: entry.id, up: !!entry.up, n, cost, kw: c.kw || [] };
+}
+// 牌的强度粗估（墨水值），给遭遇战难度和测试用。
+export const deckInk = deck => deck.reduce((s, e) => s + (CARDS[e.id].kind === 'unit' ? cardStats(e).cost : 0), 0);

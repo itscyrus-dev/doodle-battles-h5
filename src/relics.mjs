@@ -17,7 +17,14 @@ export const RELICS = {
   spring: { tier: 'common', flags: { spring: true } },
   echo: { tier: 'rare', flags: { echo: true } },
   bounty: { tier: 'common', bounty: 3 },
-  longbow: { tier: 'common', units: { archer: { range: 1.15 }, bomber: { range: 1.15 }, mage: { range: 1.15 } } }
+  longbow: { tier: 'common', units: { archer: { range: 1.15 }, bomber: { range: 1.15 }, mage: { range: 1.15 } } },
+  // 卡牌联动的遗物（远征卡牌模式）
+  fervor: { tier: 'rare', flags: { fervor: true } },
+  pact: { tier: 'common', flags: { pact: true } },
+  horde: { tier: 'common', horde: true },
+  warcry: { tier: 'common', momentum: 2 },
+  tactician: { tier: 'rare', tactician: true },
+  scholar: { tier: 'rare', hand: 1 }
 };
 export const RELIC_ORDER = Object.keys(RELICS);
 
@@ -52,3 +59,9 @@ export function runMods({ relics = [], upgrades = [] } = {}, enemy = null) {
   return mods;
 }
 export const bountyOf = relics => relics.reduce((s, id) => s + (RELICS[id]?.bounty || 0), 0);
+
+// 只影响卡牌规则（而不是战斗属性）的遗物效果：人海、军师、省墨、战吼、博览、赏金。
+export function relicPerks(relics = []) {
+  const has = id => relics.includes(id);
+  return { horde: has('horde'), tactician: has('tactician'), thrift: has('thrift'), momentum: relics.reduce((s, id) => s + (RELICS[id]?.momentum || 0), 0), hand: relics.reduce((s, id) => s + (RELICS[id]?.hand || 0), 0), bounty: bountyOf(relics) };
+}

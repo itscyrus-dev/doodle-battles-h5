@@ -60,7 +60,10 @@ pick "$C/map_run_canyon/map_run_canyon_2.png" assets/map/run-canyon.webp 1400x 7
 pick "$C/map_run_snow/map_run_snow_2.png" assets/map/run-snow.webp 1400x 76
 for k in battle elite boss camp shop event; do sprite "$IN/node_$k.png" "assets/icons/node-$k.webp" 160; done
 sprite "$IN/node_heart.png" assets/icons/heart.webp 128
-for r in swift charge flank anchor thick sharp thrift squad drum bleed spring echo bounty longbow; do sprite "$IN/relic_$r.png" "assets/icons/relic-$r.webp" 160; done
+for r in swift charge flank anchor thick sharp thrift squad drum bleed spring echo bounty longbow fervor pact horde warcry tactician scholar; do sprite "$IN/relic_$r.png" "assets/icons/relic-$r.webp" 160; done
+# 卡牌：战术牌图标和战墨图标。
+for t in reinforce assault shield; do sprite "$IN/tactic_$t.png" "assets/icons/tactic-$t.webp" 160; done
+sprite "$IN/icon_momentum.png" assets/icons/momentum.webp 128
 
 # 应用图标：PWA、iOS 主屏幕和浏览器标签页。
 magick "$IN/app_icon.png" -resize 512x512 -strip assets/icon/icon-512.png
