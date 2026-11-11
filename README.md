@@ -60,13 +60,14 @@ python3 serve.py --host 0.0.0.0
 node --test tests/*.test.mjs
 ```
 
-共 110 个测试，覆盖：
+共 114 个测试，覆盖：
 
 - 模拟规则：寻敌、转向、弹道、障碍、各兵种和道具的效果。
 - 布阵校验和存档校验，包括旧版存档迁移和被改坏的存档。
 - 金币、配色、锦囊、每日悬赏和成就的发放规则。
 - 每一关都有一个不靠道具也能获胜的阵容。
 - 中英文文案条目一一对应。
+- 发布流程：版本号处处一致，当前版本写了更新记录。
 
 ## 关卡难度工具
 
@@ -114,7 +115,19 @@ python3 release/build_web.py
 | Build command | `python3 release/build_web.py` |
 | Build output directory | `dist/web` |
 
-需要发给别人的本地试玩压缩包（含启动器和试玩说明）用 `python3 release/build_playtest.py` 生成，输出到 `dist/`。版本号统一写在 `release.json`。
+需要发给别人的本地试玩压缩包（含启动器和试玩说明）用 `python3 release/build_playtest.py` 生成，输出到 `dist/`。
+
+### 发布新版本
+
+GitHub Actions 会自动发布 Release，不需要手动打标签：
+
+1. 改 `release.json` 和 `src/playtest.mjs` 里的版本号（两处要一致，测试会检查）。
+2. 在 [CHANGELOG.md](CHANGELOG.md) 最上面加上这一版的小节，它会成为 Release 说明。
+3. 合并到 `main`。
+
+`main` 上的版本号还没有对应的 Release 时，[release.yml](.github/workflows/release.yml) 会跑测试、打包，并发布 `v<版本号>`，附带两个文件：网页包 `draw-clash-web-<版本号>.zip` 和本地试玩包 `draw-clash-playtest-<版本号>.zip`。版本号没变时什么都不做。带连字符的版本号（例如 `1.0.0-beta.1`）会标记为预发布。
+
+另外，[ci.yml](.github/workflows/ci.yml) 会在每个 PR 和每次推送到 `main` 时跑测试并确认发布包能打出来。想在本地检查打包结果，运行 `python3 release/build_release.py`。
 
 ## 目录结构
 
@@ -137,10 +150,12 @@ python3 release/build_web.py
 | `tools/` | 关卡难度工具、样本导出、素材处理 |
 | `art/jobs/images.json` | 生图任务清单（提示词） |
 | `assets/` | 游戏用的图片 |
-| `release/` | 网页包与本地试玩包脚本 |
+| `release/` | 网页包、本地试玩包和发布包的脚本，以及 Release 说明生成 |
+| `.github/workflows/` | CI 和自动发布 |
 
 ## 文档
 
+- [CHANGELOG.md](CHANGELOG.md)：每个版本的更新记录。
 - [PLAYTEST.md](PLAYTEST.md)：给试玩者的说明和反馈方式。
 - [docs/DEVLOG.md](docs/DEVLOG.md)：各轮迭代的设计决策和实现细节。
 

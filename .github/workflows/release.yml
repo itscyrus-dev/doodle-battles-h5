@@ -1,0 +1,64 @@
+# 自动发布：main 上 release.json 的版本号还没有对应的 Release 时，
+# 跑测试、打包，并发布 v<版本号>（附网页包和本地试玩包）。版本号没变时什么都不做。
+# 发新版本的步骤见 README 的“发布新版本”。
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Read version and check for an existing release
+        id: meta
+        run: |
+          version=$(node -p "require('./release.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "v$version is already released; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run tests
+        if: steps.meta.outputs.published == 'false'
+        run: node --test tests/*.test.mjs
+      - name: Build release packages
+        if: steps.meta.outputs.published == 'false'
+        run: python3 release/build_release.py
+      - name: Publish GitHub release
+        if: steps.meta.outputs.published == 'false'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          node release/notes.mjs > "$RUNNER_TEMP/notes.md"
+          # 带连字符的版本号（如 1.0.0-beta.1）标记为预发布。
+          flags=()
+          case "$VERSION" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "v$VERSION" \
+            "dist/draw-clash-web-$VERSION.zip" \
+            "dist/draw-clash-playtest-$VERSION.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Draw & Clash $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            "${flags[@]}"
+          echo "Published v$VERSION" >> "$GITHUB_STEP_SUMMARY"

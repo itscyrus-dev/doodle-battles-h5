@@ -1,0 +1,28 @@
+# 每个 PR 和每次推送到 main：跑测试，并确认发布包能打出来。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Run tests
+        run: node --test tests/*.test.mjs
+      - name: Build release packages
+        run: python3 release/build_release.py
